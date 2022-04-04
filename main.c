@@ -9,6 +9,7 @@
 #include "stm32f4xx_ll_utils.h" 
 
 #define USB_OTG_DEV  ((USB_OTG_DeviceTypeDef *)((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE))
+#define USB_INEP(i)  ((USB_OTG_INEndpointTypeDef *)(( uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (i) * USB_OTG_EP_REG_SIZE))
 
 #define RX_FIFO_SIZE     128
 #define TX_FIFO_EP0_SIZE 128
@@ -108,7 +109,8 @@ void USB_config (void)
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN; // enable USB PHY
     /* Interrupt */
     //NVIC_SetPriority(OTG_FS_IRQn, 1);
-    NVIC_EnableIRQ(OTG_FS_IRQn); 
+    NVIC_EnableIRQ(OTG_FS_IRQn);
+    USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // (reset bits 0 and 1) 64 bytes for full speed 
 }
 
 void OTG_FS_IRQHandler (void)
@@ -121,7 +123,20 @@ void OTG_FS_IRQHandler (void)
     if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
     { 
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag by writing 1
-        LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13); 
+        /*if ((USB_OTG_DEV->DSTS & (USB_OTG_DSTS_ENUMSPD_0 | USB_OTG_DSTS_ENUMSPD_1)) == 6) //check if full speed
+            {
+                LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13); 
+            }*/
+    }
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL)                      // RX level interrupt
+    {
+        uint32_t status = USB_OTG_FS->GRXSTSP;                            // Packet status
+        uint16_t len = (status & USB_OTG_GRXSTSP_BCNT) >> 4;              // BCNT (length)
+        if(((status & USB_OTG_GRXSTSP_PKTSTS) >> 17) == 0x06)             
+        {   
+                //read(status & USB_OTG_GRXSTSP_EPNUM, bufRx, 0x08);      // Read setup packet
+                LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);                    
+        }   
     }
 }
 
