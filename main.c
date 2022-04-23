@@ -1,4 +1,4 @@
-#define MCO
+//#define MCO
 
 #include "stm32f401xc.h"
 #include "stm32f4xx_ll_rcc.h"
@@ -8,26 +8,7 @@
 #include "stm32f4xx_ll_cortex.h"
 #include "stm32f4xx_ll_utils.h"
 #include <stddef.h> 
-
-#define USB_OTG_DEV  ((USB_OTG_DeviceTypeDef *) ((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE))
-#define USB_INEP(i)  ((USB_OTG_INEndpointTypeDef *) (( uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (i) * USB_OTG_EP_REG_SIZE))
-#define USB_OUTEP(i) ((USB_OTG_OUTEndpointTypeDef *)((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (i) * USB_OTG_EP_REG_SIZE))
-#define USB_FIFO(i)  *(volatile uint32_t *)(USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + ((i) * USB_OTG_FIFO_SIZE))
-
-#define RX_FIFO_SIZE     80 // size is in 32-bit words
-#define TX_FIFO_EP0_SIZE 80 // sum of all FIFO sizes is not grater than 320 words
-#define TX_FIFO_EP1_SIZE 80
-#define TX_FIFO_EP2_SIZE 80
-
-uint8_t bufRX [72] = {0};
-
-void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len);
-void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len);
-void USB_config (void);
-void RCC_config (void);
-void MCO_config (void);
-void GPIO_config(void);
-void USB_device_setup (uint8_t *buf);
+#include "usb.h"
 
 /*
  * Clock on GPIOC and set led pin
@@ -157,7 +138,7 @@ void OTG_FS_IRQHandler (void)
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) // there is at least one packet pending to be read from the RxFIFO
     {
-        USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM; // Mask the RXFLVL interrupt until reading the packet from the receive FIFO
+        USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM; // Mask the RXFLVL interrupt until reading the packet from the receive FIFO is done
 
         uint32_t grxstsp = USB_OTG_FS->GRXSTSP;                                              // Rx packet status register
         uint16_t bcnt = ((grxstsp & USB_OTG_GRXSTSP_BCNT) >> USB_OTG_GRXSTSP_BCNT_Pos);      // BCNT (length)
@@ -170,21 +151,16 @@ void OTG_FS_IRQHandler (void)
             {
                 case 0:
                 {
-                    if ((pktsts == 0x06) && (bcnt == 0x8) && (dpid == 0)) // setup packet received
+                    if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0)) // setup packet received
                     {
                         read_ep (epnum, bufRX, bcnt); // Read setup packet
                     }
+                    else if (pktsts == SETUP_Done)
+                    {
+
+                    }
                     break;
                 }
-            
-                /*if (pktsts == 0x06) // if setup packet
-                {   
-                    
-                    const uint8_t bRequest = bufRX [1];
-                    USB_OTG_DEV->DCFG |= (((uint32_t) bufRX [2]) << 4);
-                    send_ep (0, 0, 0); // send zero length packet 
-                    LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);                
-                }*/
                 default: // wrong EP number
                     break;
             } 
@@ -197,8 +173,23 @@ void OTG_FS_IRQHandler (void)
     {         
         uint32_t epNum; 
         uint32_t epInt;
+
         epNum = USB_OTG_DEV->DAINT;
         epNum &= USB_OTG_DEV->DAINTMSK;
+
+        if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
+        {      
+            epInt = USB_OUTEP(0)->DOEPINT;
+            epInt &= USB_OTG_DEV->DOEPMSK;
+
+            if (epInt & USB_OTG_DOEPINT_STUP) // On this interrupt, the application can decode the received SETUP data packet.
+            {
+                USB_device_setup (bufRx); // Decode setup packet
+            }
+
+            USB_OUTEP(0)->DOEPINT = epInt; // Clear interrupt flags in DOEPINT register
+            USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
+        }   
     }
 }
 
@@ -227,17 +218,155 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
     USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;   // Enable endpoint, clear NAK bit     
     for(i = 0; i < ((len + 3) / 4); i++) 
         {
-            USB_FIFO(ep) = (((uint32_t) buf [i]) | (((uint32_t) bufRX [i+1]) << 8) | (((uint32_t) bufRX [i+2]) << 16) | (((uint32_t) bufRX [i+3]) << 24));                      // Copy data 
+            USB_FIFO(ep) = (((uint32_t) buf [i]) | (((uint32_t) buf [i+1]) << 8) | (((uint32_t) buf [i+2]) << 16) | (((uint32_t) buf [i+3]) << 24));                      // Copy data 
         } 
+}
+
+void stall_TX_ep (uint8_t ep)
+{
+    USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_STALL;
 }
 
 void USB_device_setup (uint8_t *buf)
 {
-    const uint8_t bmRequestType = buf[0];
-    const uint8_t bRequest = buf[1];
-    const uint16_t wValue = buf[2] | ((uint16_t)buf[3] << 8);
-    const uint16_t wIndex = buf[4] | ((uint16_t)buf[5] << 8);  
-    const uint16_t wLength = buf[6] | ((uint16_t)buf[7] << 8); 
+    const uint8_t bmRequestType = buf [0];
+    const uint8_t bRequest = buf [1];
+    const uint16_t wValue = buf [2] | ((uint16_t) buf [3] << 8);
+    const uint16_t wIndex = buf [4] | ((uint16_t) buf [5] << 8);  
+    const uint16_t wLength = buf [6] | ((uint16_t) buf [7] << 8);
+
+    switch (bmRequestType & REQUEST_RECIPIENT_MASK)
+    {
+        case RECIPIENT_DEVICE: // Recipient is device
+        {
+            switch (bmRequestType & REQUEST_TYPE_MASK)
+            {
+                case REQUEST_CLASS:
+                case REQUEST_VENDOR:
+                    break;
+                case REQUEST_STANDARD:
+                switch (bRequest)
+                {
+                    case GET_DESCRIPTOR:
+                    {
+                        get_descriptor (wValue, wLength);
+                        break;
+                    }                               
+                    case SET_ADDRESS:
+                    {
+                        set_address (buf [2]);                                                     
+                        break;
+                    }
+                    case SET_CONFIGURATION:
+                    {
+                        setConfig ();
+                        break;
+                    }
+                    case GET_CONFIGURATION:
+                        break;
+                    case GET_STATUS:
+                        break;
+                    case SET_FEATURE:
+                        break;
+                    case CLEAR_FEATURE:
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        case RECIPIENT_ENDPOINT:
+            break;
+        case RECIPIENT_INTERFACE:
+            break;
+        default:
+            break;
+    }
+}
+
+void set_address (uint8_t address)
+{
+    USB_OTG_DEV->DCFG |= ((uint32_t) address << 4);
+    send_ep (0, 0, 0); 
+}
+
+void get_descriptor (uint16_t wValue, uint16_t wLength)
+{
+    uint8_t *pbuf;
+    uint8_t len = 0;
+    switch (wValue >> 8)    
+    {
+        case DESC_DEVICE: // Request device descriptor
+        {
+            pbuf = (uint8_t*) desc_device; 
+            len = sizeof (desc_device);             
+            break;  
+        }
+                         
+        case DESC_CONFIG: // Request configuration descriptor
+        {
+            pbuf = (uint8_t*) desc_config;
+            len = sizeof (desc_config);
+            break;  
+        }
+                          
+        case DESC_STRING: // Request string descriptor
+        {
+            switch (wValue & 0xFF) // Request string descriptor
+            {
+                case DESC_STR_LANGID:  // Lang
+                {
+                    pbuf = (uint8_t*) desc_lang;
+                    len = sizeof (desc_lang);   
+                    break;
+                }
+                                                                  
+                case DESC_STR_MFC:     // Manufacturer
+                {
+                    pbuf = (uint8_t*) desc_vendor, 
+                    len = sizeof (desc_vendor); 
+                    break;
+                }
+                    
+                case DESC_STR_PRODUCT: // Product
+                {
+                    pbuf = (uint8_t*) desc_product; 
+                    len = sizeof (desc_product);
+                    break;
+                }
+                    
+                case DESC_STR_SERIAL:  // SerialNumber
+                {
+                    pbuf = (uint8_t*) desc_serial;
+                    len = sizeof (desc_serial); 
+                    break;
+                }
+                    
+                case DESC_STR_CONFIG:  // Config
+                {
+                    pbuf = (uint8_t*) desc_config;
+                    len = sizeof (desc_config);
+                    break;
+                }
+                    
+                case DESC_STR_INTERFACE:// Interface
+                    break;
+                default:
+                    break;
+            }
+            break;   
+        }
+
+        default:
+        {
+            stall_TX_ep (0); // we don't know how to handle this request                      
+            break;  
+        }    
+    }
+    if (len)
+    {    
+        //send (0, pbuf, MIN(len,wLength));   
+    }  
 }
 
 int main (void)
