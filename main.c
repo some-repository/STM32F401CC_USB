@@ -97,7 +97,6 @@ void USB_config (void)
     /* Interrupt */
     //NVIC_SetPriority(OTG_FS_IRQn, 1);
     NVIC_EnableIRQ (OTG_FS_IRQn);
-    USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // (reset bits 0 and 1) 64 bytes for full speed 
 }
 
 void OTG_FS_IRQHandler (void)
@@ -124,16 +123,12 @@ void OTG_FS_IRQHandler (void)
         USB_OUTEP(0)->DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK; // Enable endpoint, Clear NAK bit
 
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_USBRST; // Clear the flag by writing 1
-        //LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);
     }
 
     if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
     { 
+        USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // reset bits 0 and 1 to set maximum packet size of MAX_PACKET_SIZE_EP0 = 64 bytes for EP0 TX&RX  
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag by writing 1
-        /*if ((USB_OTG_DEV->DSTS & (USB_OTG_DSTS_ENUMSPD_0 | USB_OTG_DSTS_ENUMSPD_1)) == 6) //check if full speed
-            {
-                LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13); 
-            }*/
     }
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) // there is at least one packet pending to be read from the RxFIFO
@@ -184,7 +179,7 @@ void OTG_FS_IRQHandler (void)
 
             if (epInt & USB_OTG_DOEPINT_STUP) // On this interrupt, the application can decode the received SETUP data packet.
             {
-                USB_device_setup (bufRx); // Decode setup packet
+                USB_device_setup (bufRX); // Decode setup packet
             }
 
             USB_OUTEP(0)->DOEPINT = epInt; // Clear interrupt flags in DOEPINT register
@@ -213,10 +208,17 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
     {
         return;
     }
+    if (len > MAX_PACKET_SIZE_EP0) // check if len <= MAX_PACKET_SIZE_EP0
+    {
+        return;
+    }
+
+    while ((((USB_INEP(ep)->DTXFSTS) & 0xFFFF) * 4) < (uint32_t) len); // wait until there is enough space in TX FIFO
+
     uint16_t i;
-    USB_INEP(ep)->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len;       // Set outbound txlen
+    USB_INEP(ep)->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len;       // one packet of len bytes
     USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;   // Enable endpoint, clear NAK bit     
-    for(i = 0; i < ((len + 3) / 4); i++) 
+    for (i = 0; i < ((len + 3) / 4); i++) 
         {
             USB_FIFO(ep) = (((uint32_t) buf [i]) | (((uint32_t) buf [i+1]) << 8) | (((uint32_t) buf [i+2]) << 16) | (((uint32_t) buf [i+3]) << 24));                      // Copy data 
         } 
@@ -259,7 +261,7 @@ void USB_device_setup (uint8_t *buf)
                     }
                     case SET_CONFIGURATION:
                     {
-                        setConfig ();
+                        //setConfig ();
                         break;
                     }
                     case GET_CONFIGURATION:
@@ -299,7 +301,7 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
         case DESC_DEVICE: // Request device descriptor
         {
             pbuf = (uint8_t*) desc_device; 
-            len = sizeof (desc_device);             
+            len = 18;             
             break;  
         }
                          
@@ -323,22 +325,22 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
                                                                   
                 case DESC_STR_MFC:     // Manufacturer
                 {
-                    pbuf = (uint8_t*) desc_vendor, 
-                    len = sizeof (desc_vendor); 
+                    /*pbuf = (uint8_t*) desc_vendor; 
+                    len = sizeof (desc_vendor); */
                     break;
                 }
                     
                 case DESC_STR_PRODUCT: // Product
                 {
-                    pbuf = (uint8_t*) desc_product; 
-                    len = sizeof (desc_product);
+                    /*pbuf = (uint8_t*) desc_product; 
+                    len = sizeof (desc_product);*/
                     break;
                 }
                     
                 case DESC_STR_SERIAL:  // SerialNumber
                 {
-                    pbuf = (uint8_t*) desc_serial;
-                    len = sizeof (desc_serial); 
+                    /*pbuf = (uint8_t*) desc_serial;
+                    len = sizeof (desc_serial); */
                     break;
                 }
                     
@@ -365,7 +367,8 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
     }
     if (len)
     {    
-        //send (0, pbuf, MIN(len,wLength));   
+        send_ep (0, pbuf, MIN(len, wLength));
+        LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);   
     }  
 }
 
@@ -377,9 +380,6 @@ int main (void)
 
     while (1) 
     {
-        /*LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);
-        delay ();
-        LL_GPIO_ResetOutputPin (GPIOC, LL_GPIO_PIN_13);
-        delay ();*/
+
     }
 }
