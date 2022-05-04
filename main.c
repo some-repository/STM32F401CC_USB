@@ -164,7 +164,7 @@ void OTG_FS_IRQHandler (void)
         USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM; // Unmask the RXFLVL interrupt after reading the packet from the receive FIFO  
     }
 
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
+    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
     {         
         uint32_t epNum; 
         uint32_t epInt;
@@ -185,6 +185,33 @@ void OTG_FS_IRQHandler (void)
             USB_OUTEP(0)->DOEPINT = epInt; // Clear interrupt flags in DOEPINT register
             USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
         }   
+
+        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT) // OUT -> TX endpoint interrupt
+        {
+            uint32_t epNum; 
+            uint32_t epInt;
+
+            epNum = USB_OTG_DEV->DAINT;
+            epNum &= USB_OTG_DEV->DAINTMSK;
+
+            if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
+            {      
+                epInt = USB_INEP(0)->DIEPINT;
+                epInt &= USB_OTG_DEV->DIEPMSK;
+
+                USB_INEP(0)->DIEPINT = epInt; // Clear interrupt flags in DOEPINT register
+            }   
+        }
+
+        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
+        {
+            USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS; // Clear the flag (rc_w1)
+        }  
+
+        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF) 
+        {     
+            USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF; // Clear the flag (rc_w1)
+        }    
     }
 }
 
