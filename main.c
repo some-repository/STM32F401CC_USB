@@ -77,8 +77,8 @@ void USB_config (void)
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_IEPINT |   // Enable USB IN TX endpoint interrupt
                            USB_OTG_GINTMSK_OEPINT |   // Enable USB OUT RX endpoint interrupt
                            USB_OTG_GINTMSK_RXFLVLM |  // USB recieving
-                           USB_OTG_GINTMSK_MMISM |    // OTG interrupt
-                           USB_OTG_GINTMSK_OTGINT;    // Mode mismatch interrupt
+                           USB_OTG_GINTMSK_MMISM /*|    // OTG interrupt
+                           USB_OTG_GINTMSK_OTGINT*/;    // Mode mismatch interrupt
     USB_OTG_FS->GAHBCFG = (USB_OTG_GAHBCFG_GINT | USB_OTG_GAHBCFG_TXFELVL); // GINTMSK = 1 and USB_OTG_GAHBCFG_TXFELVL = 1 (interrupt on completely empty TX buffer)
     /* Device */
     USB_OTG_DEV->DCFG |= USB_OTG_DCFG_NZLSOHSK | USB_OTG_DCFG_DSPD_1 | USB_OTG_DCFG_DSPD_0; //Full speed, STALL for all OUT requests
@@ -90,9 +90,9 @@ void USB_config (void)
     //USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_SOFM |     // Start of frame interrupt
                            USB_OTG_GINTMSK_USBRST |   // Reset interrupt
-                           USB_OTG_GINTMSK_ENUMDNEM | // Enumeration done interrupt
+                           USB_OTG_GINTMSK_ENUMDNEM /*| // Enumeration done interrupt
                            USB_OTG_GINTMSK_USBSUSPM | // USB suspend interrupt
-                           USB_OTG_GINTMSK_ESUSPM;    // Early USB suspend interrupt
+                           USB_OTG_GINTMSK_ESUSPM*/;    // Early USB suspend interrupt
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN; // enable USB PHY
     /* Interrupt */
     //NVIC_SetPriority(OTG_FS_IRQn, 1);
@@ -101,6 +101,8 @@ void USB_config (void)
 
 void OTG_FS_IRQHandler (void)
 {   
+    LL_GPIO_ResetOutputPin (GPIOC, LL_GPIO_PIN_13);
+    
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_USBRST)   // Reset Interrupt
     {
         USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK; // Set the NAK bit for all OUT endpoints
@@ -119,10 +121,8 @@ void OTG_FS_IRQHandler (void)
         USB_OUTEP(0)->DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
                              USB_OTG_DOEPTSIZ_STUPCNT | (3 * 8); // Allow 3 setup packets of 8 bytes                                  
         USB_OTG_DEV->DCFG &= ~USB_OTG_DCFG_DAD;         // Clear address    
-        USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;   // Clear flag
+        USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;   // Clear the flag by writing 1
         USB_OUTEP(0)->DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK; // Enable endpoint, Clear NAK bit
-
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_USBRST; // Clear the flag by writing 1
     }
 
     if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
@@ -202,17 +202,19 @@ void OTG_FS_IRQHandler (void)
                 USB_INEP(0)->DIEPINT = epInt; // Clear interrupt flags in DOEPINT register
             }   
         }
-
-        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
-        {
-            USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS; // Clear the flag (rc_w1)
-        }  
-
-        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF) 
-        {     
-            USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF; // Clear the flag (rc_w1)
-        }    
     }
+
+    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
+    {
+        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS; // Clear the flag (rc_w1)
+    }  
+
+    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF) 
+    {     
+        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF; // Clear the flag (rc_w1)
+    }    
+    
+    LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);
 }
 
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
@@ -242,13 +244,22 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
 
     while ((((USB_INEP(ep)->DTXFSTS) & 0xFFFF) * 4) < (uint32_t) len); // wait until there is enough space in TX FIFO
 
-    uint16_t i;
+    uint8_t i, j;
+    uint32_t tmp = 0;
     USB_INEP(ep)->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len;       // one packet of len bytes
     USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;   // Enable endpoint, clear NAK bit     
     for (i = 0; i < ((len + 3) / 4); i++) 
+    {
+        tmp = 0;
+        for (j = 0; j < 4; j++)
         {
-            USB_FIFO(ep) = (((uint32_t) buf [i]) | (((uint32_t) buf [i+1]) << 8) | (((uint32_t) buf [i+2]) << 16) | (((uint32_t) buf [i+3]) << 24));                      // Copy data 
-        } 
+            if (((i * 4) + j) < len)
+            {
+                tmp |= (((uint32_t) *(buf + (4 * i) + j)) << (8 * j));
+            }
+        }
+        USB_FIFO(ep) = tmp; // Copy data 
+    } 
 }
 
 void stall_TX_ep (uint8_t ep)
@@ -315,26 +326,26 @@ void USB_device_setup (uint8_t *buf)
 
 void set_address (uint8_t address)
 {
-    USB_OTG_DEV->DCFG |= ((uint32_t) address << 4);
+    USB_OTG_DEV->DCFG |= (((uint32_t) address) << 4); // SEE ERRATA 2.8.4
     send_ep (0, 0, 0); 
 }
 
 void get_descriptor (uint16_t wValue, uint16_t wLength)
 {
-    uint8_t *pbuf;
+    uint8_t *ptr;
     uint8_t len = 0;
     switch (wValue >> 8)    
     {
         case DESC_DEVICE: // Request device descriptor
         {
-            pbuf = (uint8_t*) desc_device; 
+            ptr = (uint8_t*) desc_device; 
             len = 18;             
             break;  
         }
                          
         case DESC_CONFIG: // Request configuration descriptor
         {
-            pbuf = (uint8_t*) desc_config;
+            ptr = (uint8_t*) desc_config;
             len = sizeof (desc_config);
             break;  
         }
@@ -345,7 +356,7 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
             {
                 case DESC_STR_LANGID:  // Lang
                 {
-                    pbuf = (uint8_t*) desc_lang;
+                    ptr = (uint8_t*) desc_lang;
                     len = sizeof (desc_lang);   
                     break;
                 }
@@ -359,21 +370,21 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
                     
                 case DESC_STR_PRODUCT: // Product
                 {
-                    /*pbuf = (uint8_t*) desc_product; 
+                    /*ptr = (uint8_t*) desc_product; 
                     len = sizeof (desc_product);*/
                     break;
                 }
                     
                 case DESC_STR_SERIAL:  // SerialNumber
                 {
-                    /*pbuf = (uint8_t*) desc_serial;
+                    /*ptr = (uint8_t*) desc_serial;
                     len = sizeof (desc_serial); */
                     break;
                 }
                     
                 case DESC_STR_CONFIG:  // Config
                 {
-                    pbuf = (uint8_t*) desc_config;
+                    ptr = (uint8_t*) desc_config;
                     len = sizeof (desc_config);
                     break;
                 }
@@ -394,8 +405,7 @@ void get_descriptor (uint16_t wValue, uint16_t wLength)
     }
     if (len)
     {    
-        send_ep (0, pbuf, MIN(len, wLength));
-        LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);   
+        send_ep (0, ptr, MIN(len, wLength));   
     }  
 }
 
