@@ -5,6 +5,7 @@
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
+#include "stm32f4xx_ll_usart.h"
 #include "stm32f4xx_ll_cortex.h"
 #include "stm32f4xx_ll_utils.h"
 #include <stddef.h> 
@@ -52,6 +53,36 @@ void RCC_config (void)
     LL_RCC_SetSysClkSource (LL_RCC_SYS_CLKSOURCE_PLL);
     while (LL_RCC_GetSysClkSource () != LL_RCC_SYS_CLKSOURCE_STATUS_PLL);
     while (LL_RCC_GetUSBClockFreq (LL_RCC_USB_CLKSOURCE) == LL_RCC_PERIPH_FREQUENCY_NO);
+}
+
+void UART_config (void)
+{
+    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
+    // настройка вывода PA9 (TX1) на режим альтернативной функции с активным выходом
+    // Биты CNF = 10, ,биты MODE = X1
+    LL_GPIO_SetPinMode (GPIOA, LL_GPIO_PIN_9, LL_GPIO_MODE_ALTERNATE);
+    LL_GPIO_SetPinSpeed (GPIOA, LL_GPIO_PIN_9, LL_GPIO_SPEED_FREQ_VERY_HIGH);
+    LL_GPIO_SetAFPin_8_15 (GPIOA, LL_GPIO_PIN_9, LL_GPIO_AF_7);
+
+    LL_USART_SetDataWidth (USART1, LL_USART_DATAWIDTH_8B);
+    LL_USART_SetParity (USART1, LL_USART_PARITY_NONE);
+    LL_USART_SetOverSampling (USART1, LL_USART_OVERSAMPLING_16);
+    LL_USART_SetStopBitsLength (USART1, LL_USART_STOPBITS_1);
+    LL_USART_SetBaudRate (USART1, 84000000, LL_USART_OVERSAMPLING_16, 115200);
+    LL_USART_SetTransferDirection (USART1, LL_USART_DIRECTION_TX);
+    LL_USART_SetHWFlowCtrl (USART1, LL_USART_HWCONTROL_NONE);
+    LL_USART_ConfigAsyncMode (USART1);
+    LL_USART_Enable (USART1);
+}
+
+void USART_TX (uint8_t* ptr, uint16_t sz)
+{
+    uint16_t i = 0;
+    for (i = 0; i < sz; i++)
+    {
+        while (!LL_USART_IsActiveFlag_TXE (USART1));
+        LL_USART_TransmitData8 (USART1, *((uint8_t*) (ptr + i)));
+    }
 }
 
 void USB_config (void)
@@ -414,6 +445,9 @@ int main (void)
     RCC_config ();
     GPIO_config ();
     USB_config ();
+    UART_config ();
+
+    USART_TX ("print test\n", 11);
 
     while (1) 
     {

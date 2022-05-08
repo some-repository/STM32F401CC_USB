@@ -70,6 +70,8 @@ void USB_config (void);
 void RCC_config (void);
 void MCO_config (void);
 void GPIO_config (void);
+void UART_config (void);
+void USART_TX (uint8_t* ptr, uint16_t sz);
 void USB_device_setup (uint8_t *buf);
 void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);
