@@ -60,6 +60,7 @@
 #define TX_FIFO_EP0_SIZE 80 // sum of all FIFO sizes is not grater than 320 words
 #define TX_FIFO_EP1_SIZE 80
 #define TX_FIFO_EP2_SIZE 80
+#define UART_SPEED 115200
 
 uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
 //uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
@@ -71,7 +72,7 @@ void RCC_config (void);
 void MCO_config (void);
 void GPIO_config (void);
 void UART_config (void);
-void USART_TX (uint8_t* ptr, uint16_t sz);
+void print (uint8_t* ptr, uint16_t sz);
 void USB_device_setup (uint8_t *buf);
 void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);

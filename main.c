@@ -57,9 +57,9 @@ void RCC_config (void)
 
 void UART_config (void)
 {
+    LL_AHB1_GRP1_EnableClock (LL_AHB1_GRP1_PERIPH_GPIOA);
     RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
-    // настройка вывода PA9 (TX1) на режим альтернативной функции с активным выходом
-    // Биты CNF = 10, ,биты MODE = X1
+    // PA9 (TX1)
     LL_GPIO_SetPinMode (GPIOA, LL_GPIO_PIN_9, LL_GPIO_MODE_ALTERNATE);
     LL_GPIO_SetPinSpeed (GPIOA, LL_GPIO_PIN_9, LL_GPIO_SPEED_FREQ_VERY_HIGH);
     LL_GPIO_SetAFPin_8_15 (GPIOA, LL_GPIO_PIN_9, LL_GPIO_AF_7);
@@ -68,14 +68,14 @@ void UART_config (void)
     LL_USART_SetParity (USART1, LL_USART_PARITY_NONE);
     LL_USART_SetOverSampling (USART1, LL_USART_OVERSAMPLING_16);
     LL_USART_SetStopBitsLength (USART1, LL_USART_STOPBITS_1);
-    LL_USART_SetBaudRate (USART1, 84000000, LL_USART_OVERSAMPLING_16, 115200);
+    LL_USART_SetBaudRate (USART1, 84000000, LL_USART_OVERSAMPLING_16, UART_SPEED);
     LL_USART_SetTransferDirection (USART1, LL_USART_DIRECTION_TX);
     LL_USART_SetHWFlowCtrl (USART1, LL_USART_HWCONTROL_NONE);
     LL_USART_ConfigAsyncMode (USART1);
     LL_USART_Enable (USART1);
 }
 
-void USART_TX (uint8_t* ptr, uint16_t sz)
+void print (uint8_t* ptr, uint16_t sz)
 {
     uint16_t i = 0;
     for (i = 0; i < sz; i++)
@@ -132,10 +132,12 @@ void USB_config (void)
 
 void OTG_FS_IRQHandler (void)
 {   
-    LL_GPIO_ResetOutputPin (GPIOC, LL_GPIO_PIN_13);
+    print ("interrupt entry\n", 16);
     
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_USBRST)   // Reset Interrupt
     {
+        print ("RST\n", 4);
+        
         USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK; // Set the NAK bit for all OUT endpoints
         USB_OUTEP(1)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
         USB_OUTEP(2)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -158,6 +160,7 @@ void OTG_FS_IRQHandler (void)
 
     if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
     { 
+        print ("ENUMDNE\n", 8);
         USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // reset bits 0 and 1 to set maximum packet size of MAX_PACKET_SIZE_EP0 = 64 bytes for EP0 TX&RX  
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag by writing 1
     }
@@ -165,6 +168,7 @@ void OTG_FS_IRQHandler (void)
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) // there is at least one packet pending to be read from the RxFIFO
     {
         USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM; // Mask the RXFLVL interrupt until reading the packet from the receive FIFO is done
+        print ("RXFLVL\n", 7);
 
         uint32_t grxstsp = USB_OTG_FS->GRXSTSP;                                              // Rx packet status register
         uint16_t bcnt = ((grxstsp & USB_OTG_GRXSTSP_BCNT) >> USB_OTG_GRXSTSP_BCNT_Pos);      // BCNT (length)
@@ -180,10 +184,11 @@ void OTG_FS_IRQHandler (void)
                     if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0)) // setup packet received
                     {
                         read_ep (epnum, bufRX, bcnt); // Read setup packet
+                        print ("SETUP packet received\n", 22);
                     }
                     else if (pktsts == SETUP_Done)
                     {
-
+                        print ("SETUP done packet received\n", 27);
                     }
                     break;
                 }
@@ -197,6 +202,8 @@ void OTG_FS_IRQHandler (void)
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
     {         
+        print ("OEPINT\n", 7);
+        
         uint32_t epNum; 
         uint32_t epInt;
 
@@ -219,6 +226,8 @@ void OTG_FS_IRQHandler (void)
 
         if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT) // OUT -> TX endpoint interrupt
         {
+            print ("IEPINT\n", 7);
+            
             uint32_t epNum; 
             uint32_t epInt;
 
@@ -237,15 +246,19 @@ void OTG_FS_IRQHandler (void)
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
     {
+        print ("MMIS\n", 5);
+        
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS; // Clear the flag (rc_w1)
     }  
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF) 
-    {     
+    {   
+        print ("SOF\n", 4);  
+        
         USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF; // Clear the flag (rc_w1)
     }    
     
-    LL_GPIO_SetOutputPin (GPIOC, LL_GPIO_PIN_13);
+    print ("interrupt exit\n", 15);
 }
 
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
@@ -320,11 +333,15 @@ void USB_device_setup (uint8_t *buf)
                 {
                     case GET_DESCRIPTOR:
                     {
+                        print ("GET DESCRIPTOR\n", 15);
+
                         get_descriptor (wValue, wLength);
                         break;
                     }                               
                     case SET_ADDRESS:
                     {
+                        print ("SET ADDRESS\n", 12);
+                        
                         set_address (buf [2]);                                                     
                         break;
                     }
@@ -357,6 +374,10 @@ void USB_device_setup (uint8_t *buf)
 
 void set_address (uint8_t address)
 {
+    print ("address = ", 10);
+    print (&address, 1);
+    print ("\n", 1);
+    
     USB_OTG_DEV->DCFG |= (((uint32_t) address) << 4); // SEE ERRATA 2.8.4
     send_ep (0, 0, 0); 
 }
@@ -444,10 +465,10 @@ int main (void)
 {
     RCC_config ();
     GPIO_config ();
-    USB_config ();
     UART_config ();
+    USB_config ();
 
-    USART_TX ("print test\n", 11);
+    print ("print test\n", 11);
 
     while (1) 
     {
