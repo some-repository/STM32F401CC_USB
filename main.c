@@ -107,8 +107,8 @@ void USB_config (void)
     USB_OTG_FS->GINTSTS = 0; // clear OTG_FS_GINTSTS register at initialization before unmasking the interrupt bits
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_IEPINT |   // Enable USB IN TX endpoint interrupt
                            USB_OTG_GINTMSK_OEPINT |   // Enable USB OUT RX endpoint interrupt
-                           USB_OTG_GINTMSK_RXFLVLM |  // USB recieving
-                           USB_OTG_GINTMSK_MMISM /*|    // OTG interrupt
+                           USB_OTG_GINTMSK_RXFLVLM /*|  // USB recieving
+                           USB_OTG_GINTMSK_MMISM |    // OTG interrupt
                            USB_OTG_GINTMSK_OTGINT*/;    // Mode mismatch interrupt
     USB_OTG_FS->GAHBCFG = (USB_OTG_GAHBCFG_GINT | USB_OTG_GAHBCFG_TXFELVL); // GINTMSK = 1 and USB_OTG_GAHBCFG_TXFELVL = 1 (interrupt on completely empty TX buffer)
     /* Device */
@@ -119,9 +119,9 @@ void USB_config (void)
     
     //USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
     //USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
-    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_SOFM |     // Start of frame interrupt
-                           USB_OTG_GINTMSK_USBRST |   // Reset interrupt
-                           USB_OTG_GINTMSK_ENUMDNEM /*| // Enumeration done interrupt
+    USB_OTG_FS->GINTMSK |= /*USB_OTG_GINTMSK_SOFM | */    // Start of frame interrupt
+                           USB_OTG_GINTMSK_USBRST /*|   // Reset interrupt
+                           USB_OTG_GINTMSK_ENUMDNEM | // Enumeration done interrupt
                            USB_OTG_GINTMSK_USBSUSPM | // USB suspend interrupt
                            USB_OTG_GINTMSK_ESUSPM*/;    // Early USB suspend interrupt
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN; // enable USB PHY
@@ -222,27 +222,28 @@ void OTG_FS_IRQHandler (void)
 
             USB_OUTEP(0)->DOEPINT = epInt; // Clear interrupt flags in DOEPINT register
             USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
-        }   
-
-        if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT) // OUT -> TX endpoint interrupt
-        {
-            print ("IEPINT\n", 7);
-            
-            uint32_t epNum; 
-            uint32_t epInt;
-
-            epNum = USB_OTG_DEV->DAINT;
-            epNum &= USB_OTG_DEV->DAINTMSK;
-
-            if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
-            {      
-                epInt = USB_INEP(0)->DIEPINT;
-                epInt &= USB_OTG_DEV->DIEPMSK;
-
-                USB_INEP(0)->DIEPINT = epInt; // Clear interrupt flags in DOEPINT register
-            }   
         }
+    }   
+
+    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT) // OUT -> TX endpoint interrupt
+    {
+        print ("IEPINT\n", 7);
+            
+        uint32_t epNum; 
+        uint32_t epInt;
+
+        epNum = USB_OTG_DEV->DAINT;
+        epNum &= USB_OTG_DEV->DAINTMSK;
+
+        if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
+        {      
+            epInt = USB_INEP(0)->DIEPINT;
+            epInt &= USB_OTG_DEV->DIEPMSK;
+
+            USB_INEP(0)->DIEPINT = epInt; // Clear interrupt flags in DIEPINT register
+        }   
     }
+    
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
     {
@@ -263,9 +264,10 @@ void OTG_FS_IRQHandler (void)
 
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
 {
-    int16_t i; 
+    int16_t i;
+    static int16_t pos = 0; 
     uint32_t word;
-    for(i = 0; i < ((len + 3) / 4); i++)
+    for(i = pos; i < ((len + 3) / 4); i++)
         {
             word = USB_FIFO(ep); //read 32 bit word from RX FIFO
             buf [4 * i] = (uint8_t) (word & 0xFF);
@@ -273,6 +275,7 @@ void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
             buf [(4 * i) + 2] = (uint8_t) ((word & 0xFF0000) >> 16);
             buf [(4 * i) + 3] = (uint8_t) ((word & 0xFF000000) >> 24);
         }
+    pos = i;
 }
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
