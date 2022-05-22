@@ -2,4 +2,4 @@ build/
 *.o
 plib/src/*.o
 core/*.o
-.vscode/
+.vscode/*.log
