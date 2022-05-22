@@ -7,6 +7,7 @@
 
 #define SETUP_Done  0x04
 #define SETUP       0x06
+#define DATA        0x02
 
 #define EP0_OUT_INT                0x00010000
 #define EP1_OUT_INT                0x00020000
@@ -76,16 +77,15 @@
 #define TX_FIFO_EP2_SIZE 80
 #define UART_SPEED 115200
 
-int16_t pos = 0;
 uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
 //uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
 
-/*void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len);
+void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len);
 void USB_config (void);
 void RCC_config (void);
 void MCO_config (void);
-void GPIO_config (void);*/
+void GPIO_config (void);
 void UART_config (void);
 void print (uint8_t* ptr);
 /*void USB_device_setup (uint8_t *buf);
@@ -99,8 +99,6 @@ uint8_t epNumLastRx = 0;
 volatile uint16_t countTx = 0;
 volatile uint16_t countRx = 0;
 void sendEnd(const uint8_t ep);
-void send(const uint8_t ep, const uint8_t *buf, const uint8_t len);
-void read(const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void setup(uint8_t *buf);
 void setAddr(uint8_t addr);
 void getDesc(uint16_t wValue, uint16_t wLength);
@@ -108,7 +106,6 @@ void setConfig(void);
 void flushTx(void);
 void flushRx(void);
 void stallTx(uint8_t ep);
-void init(void);
 void intr(void); // Interrupt
 void sendData(const uint8_t ep, const uint8_t *buf, uint8_t len); // Sending data   
 uint16_t readData(const uint8_t ep, uint8_t *buf);                // Reciv data
