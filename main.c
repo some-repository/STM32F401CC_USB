@@ -132,11 +132,11 @@ void USB_config (void)
     NVIC_EnableIRQ (OTG_FS_IRQn);
 }
 
-/*void OTG_FS_IRQHandler (void)
+void OTG_FS_IRQHandler (void)
 {   
     print ("interrupt entry\n");
     
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_USBRST)   // Reset Interrupt
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_USBRST)   // Reset Int
     {
         print ("USBRST\n");
         
@@ -174,8 +174,8 @@ void USB_config (void)
     if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
     { 
         print ("ENUMDNE\n");
-        USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // reset bits 0 and 1 to set maximum packet size of MAX_PACKET_SIZE_EP0 = 64 bytes for EP0 TX&RX  
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag by writing 1
+        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag 
+        USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // reset bits 0 and 1 to set maximum packet size of MAX_PACKET_SIZE_EP0 = 64 bytes for EP0 TX&RX 
     }
 
     if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) // there is at least one packet pending to be read from the RxFIFO
@@ -211,68 +211,79 @@ void USB_config (void)
         USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM; // Unmask the RXFLVL interrupt after reading the packet from the receive FIFO
     }
 
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
     {         
         print ("OEPINT\n");
-        
         uint32_t epNum; 
         uint32_t epInt;
-
         epNum = USB_OTG_DEV->DAINT;
         epNum &= USB_OTG_DEV->DAINTMSK;
-
-        if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
+        if(epNum & EP0_OUT_INT)                       // EP0 OUT RX Interrupt
         {      
             epInt = USB_OUTEP(0)->DOEPINT;
             epInt &= USB_OTG_DEV->DOEPMSK;
-
-            if (epInt & USB_OTG_DOEPINT_STUP) // On this interrupt, the application can decode the received SETUP data packet.
+            if(epInt & USB_OTG_DOEPINT_STUP)
             {
-                USB_device_setup (bufRX); // Decode setup packet
+                print ("STUP\n");
+                setup (bufRx);                            // Parse setup packet
             }
-
-            USB_OUTEP(0)->DOEPINT = epInt; // Clear interrupt flags in DOEPINT register
+            USB_OUTEP(0)->DOEPINT = epInt;              // Clear flag
             USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
-        }
-    }   
-
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT) // OUT -> TX endpoint interrupt
-    {
-        print ("IEPINT\n");
-            
-        uint32_t epNum; 
-        uint32_t epInt;
-
-        epNum = USB_OTG_DEV->DAINT;
-        epNum &= USB_OTG_DEV->DAINTMSK;
-
-        if (epNum & EP0_OUT_INT) // EP0 OUT RX Interrupt
-        {      
-            epInt = USB_INEP(0)->DIEPINT;
-            epInt &= USB_OTG_DEV->DIEPMSK;
-
-            USB_INEP(0)->DIEPINT = epInt; // Clear interrupt flags in DIEPINT register
         }   
-    }
-    
-
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
-    {
-        print ("MMIS\n");
-        
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS; // Clear the flag (rc_w1)
+        if(epNum & EP1_OUT_INT)                        // EP1 OUT RX Interrupt
+        {
+            epInt = USB_OUTEP(1)->DOEPINT;
+            epInt &= USB_OTG_DEV->DOEPMSK;
+            USB_OUTEP(1)->DOEPINT = epInt;               // Clear flag
+            USB_OUTEP(1)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
+        }               
     }  
 
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF) 
-    {   
-        print ("SOF\n");  
-        
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF; // Clear the flag (rc_w1)
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT)   // IN -> TX endpoint interrupt
+    {     
+        print ("IEPINT\n");
+        uint32_t epNum;
+        uint32_t epInt;      
+        epNum = USB_OTG_DEV->DAINT;
+        epNum &= USB_OTG_DEV->DAINTMSK;
+        if(epNum & EP0_IN_INT)                          // EP0 IN TX Interrupt
+        {
+            epInt = USB_INEP(0)->DIEPINT;
+            epInt &= USB_OTG_DEV->DIEPMSK;
+            if(epInt & USB_OTG_DIEPINT_XFRC)
+            {
+                print ("Transfer finished on EP0\n");
+                sendEnd (0);                               // If data left to send
+            }
+            USB_INEP(0)->DIEPINT = epInt;                // Clear flag              
+        }
+        if(epNum & EP1_IN_INT)                          // EP1 IN TX Interrupt
+        {
+            epInt = USB_INEP(1)->DIEPINT;
+            epInt &= USB_OTG_DEV->DIEPMSK;
+            if(epInt & USB_OTG_DIEPINT_XFRC)
+            {
+                print ("Transfer finished on EP1\n");
+                sendEnd (1);                               // If data left to send
+            }
+            USB_INEP(1)->DIEPINT = epInt;                // Clear flag             
+        }                 
+    }
+    
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
+    {
+        print ("MMIS\n");
+        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS;
+    }  
+    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF)
+    {     
+        print ("SOF\n");
+        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF;     // Clear the flag (rc_w1)
     }    
     
     print ("interrupt exit\n");
 }
-*/
+
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
 {
     int16_t i; 
@@ -489,157 +500,6 @@ int main (void)
     }
 }
 //-------------------------------------------------------------------
-void OTG_FS_IRQHandler(void)
-{   
-    print ("Interrupt entry\n");
-    intr();
-    print ("Interrupt exit\n");
-}
- 
-void intr(void)
-{
-    if (USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_RXFLVL) // there is at least one packet pending to be read from the RxFIFO
-    {
-        print ("RXFLVL\n");
-        USB_OTG_FS->GINTMSK &= ~USB_OTG_GINTMSK_RXFLVLM; // Mask the RXFLVL interrupt until reading the packet from the receive FIFO is done
-
-        uint32_t grxstsp = USB_OTG_FS->GRXSTSP;                                              // Rx packet status register
-        uint16_t bcnt = ((grxstsp & USB_OTG_GRXSTSP_BCNT) >> USB_OTG_GRXSTSP_BCNT_Pos);      // BCNT (length)
-        uint8_t pktsts = ((grxstsp & USB_OTG_GRXSTSP_PKTSTS) >> USB_OTG_GRXSTSP_PKTSTS_Pos); // Packet status
-        uint8_t dpid = ((grxstsp & USB_OTG_GRXSTSP_DPID) >> USB_OTG_GRXSTSP_DPID_Pos);       // Data PID
-        uint8_t epnum = ((grxstsp & USB_OTG_GRXSTSP_EPNUM) >> USB_OTG_GRXSTSP_EPNUM_Pos);    // Indicates EP number to which the current received packet belongs
-        if (bcnt != 0) // Reading an empty receive FIFO can result in undefined core behavior
-        {
-            if(pktsts == DATA)              // Data
-            {                        
-                print ("DATA packet received\n"); 
-                read_ep (epnum, &bufRx[countRx], bcnt); // Read data
-                epNumLastRx = epnum;                // Save last endpoint num
-                countRx += bcnt;                                             // Save all len
-            }
-            else if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0) && (epnum == 0))              // Setup data packet received
-            {    
-                print ("SETUP packet received\n");                    // Read setup packet
-                read_ep (epnum, bufRx, bcnt);
-            }
-        }
-        if (pktsts == SETUP_Done)
-        {
-            print ("SETUP done packet received\n");
-        }
-
-        USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM; // Unmask the RXFLVL interrupt after reading the packet from the receive FIFO
-    }
-
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_OEPINT) // OUT -> RX endpoint interrupt
-    {         
-        print ("OEPINT\n");
-        uint32_t epNum; 
-        uint32_t epInt;
-        epNum = USB_OTG_DEV->DAINT;
-        epNum &= USB_OTG_DEV->DAINTMSK;
-        if(epNum & EP0_OUT_INT)                       // EP0 OUT RX Interrupt
-        {      
-            epInt = USB_OUTEP(0)->DOEPINT;
-            epInt &= USB_OTG_DEV->DOEPMSK;
-            if(epInt & USB_OTG_DOEPINT_STUP)
-            {
-                print ("STUP\n");
-                setup(bufRx);                            // Parse setup packet
-            }
-            USB_OUTEP(0)->DOEPINT = epInt;              // Clear flag
-            USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | 
-                                        USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
-        }   
-        if(epNum & EP1_OUT_INT)                        // EP1 OUT RX Interrupt
-        {
-            epInt = USB_OUTEP(1)->DOEPINT;
-            epInt &= USB_OTG_DEV->DOEPMSK;
-            USB_OUTEP(1)->DOEPINT = epInt;               // Clear flag
-            USB_OUTEP(1)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | 
-                                        USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
-        }               
-    }
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_IEPINT)   // IN -> TX endpoint interrupt
-    {     
-        print ("IEPINT\n");
-        uint32_t epNum;
-        uint32_t epInt;      
-        epNum = USB_OTG_DEV->DAINT;
-        epNum &= USB_OTG_DEV->DAINTMSK;
-        if(epNum & EP0_IN_INT)                          // EP0 IN TX Interrupt
-        {
-            epInt = USB_INEP(0)->DIEPINT;
-            epInt &= USB_OTG_DEV->DIEPMSK;
-            if(epInt & USB_OTG_DIEPINT_XFRC)
-            {
-                sendEnd(0);                               // If data left to send
-            }
-            USB_INEP(0)->DIEPINT = epInt;                // Clear flag              
-        }
-        if(epNum & EP1_IN_INT)                          // EP1 IN TX Interrupt
-        {
-            epInt = USB_INEP(1)->DIEPINT;
-            epInt &= USB_OTG_DEV->DIEPMSK;
-            if(epInt & USB_OTG_DIEPINT_XFRC)
-            {
-                sendEnd(1);                               // If data left to send
-            }
-            USB_INEP(1)->DIEPINT = epInt;                // Clear flag             
-        }                 
-    }
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_USBRST)   // Reset Int
-    {
-        print ("USBRST\n");
-        
-        USB_OTG_DEV->DCTL &= ~USB_OTG_DCTL_RWUSIG;     // Wakeup signal disable    
-        //flushTx();                                     // Clear tx buffer
-        for(uint8_t i = 0U; i < 4; i++)                 // Clear any pending EP flags
-        {
-            //USB_INEP(i)->DIEPINT = 0xFB7FU;
-            USB_INEP(i)->DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
-            USB_INEP(i)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-            //USB_OUTEP(i)->DOEPINT = 0xFB7FU;
-            USB_OUTEP(i)->DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
-            USB_OUTEP(i)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;               
-        }
-
-        USB_OTG_DEV->DAINTMSK |= 0x10001U;              // EP0 OUT, EP0 IN Interupt
-        USB_OTG_DEV->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | // Enable setup-done interrupt
-                                USB_OTG_DOEPMSK_EPDM  | // Enable EP-disabled irq
-                                USB_OTG_DOEPMSK_XFRCM;  // Enable tx-done interrupt                                   
-        USB_OTG_DEV->DIEPMSK |= USB_OTG_DIEPMSK_TOM   | // Timeout irq
-                                USB_OTG_DIEPMSK_XFRCM |
-                                USB_OTG_DIEPMSK_EPDM;
-        // buffers
-        USB_OTG_FS->GRXFSIZ = RX_FIFO_SIZE; // size is in 32-bit words
-        USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (TX_FIFO_EP0_SIZE << 16) | RX_FIFO_SIZE; // Set the position and size of the EP0 transmit buffer
-        USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
-        USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
-        USB_OUTEP(0)->DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
-                             USB_OTG_DOEPTSIZ_STUPCNT | (3 * 8); // Allow 3 setup packets of 8 bytes                                  
-        USB_OTG_DEV->DCFG &= ~USB_OTG_DCFG_DAD;         // Clear address    
-        USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;   // Clear the flag by writing 1
-        USB_OUTEP(0)->DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK; // Enable endpoint, Clear NAK bit
-    }
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_ENUMDNE)
-    { 
-        print ("ENUMDNE\n");
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_ENUMDNE; // Clear the flag 
-        USB_INEP(0)->DIEPCTL &= 0xFFFFFFFC; // reset bits 0 and 1 to set maximum packet size of MAX_PACKET_SIZE_EP0 = 64 bytes for EP0 TX&RX 
-    } 
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_MMIS)
-    {
-        print ("MMIS\n");
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_MMIS;
-    }  
-    if(USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_SOF)
-    {     
-        print ("SOF\n");
-        USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_SOF;     // Clear the flag (rc_w1)
-    }    
-}
- 
 /* This function is sending data */
 void sendData(const uint8_t ep, const uint8_t *buf, uint8_t len)
 {
