@@ -264,8 +264,7 @@ void OTG_FS_IRQHandler (void)
 
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len)
 {
-    int16_t i;
-    static int16_t pos = 0; 
+    int16_t i; 
     uint32_t word;
     for(i = pos; i < ((len + 3) / 4); i++)
         {

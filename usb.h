@@ -62,6 +62,7 @@
 #define TX_FIFO_EP2_SIZE 80
 #define UART_SPEED 115200
 
+int16_t pos = 0;
 uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
 //uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
 
@@ -78,7 +79,7 @@ void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);
 void get_descriptor (uint16_t wValue, uint16_t wLength);
 
-uint8_t desc_device [] =
+const uint8_t desc_device [] =
 {
  0x12,                       /*bLength */
  0x01U,                      /*bDescriptorType*/

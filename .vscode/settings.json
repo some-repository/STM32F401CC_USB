@@ -3,6 +3,7 @@
     "files.associations": {
         "stm32f401xc.h": "c",
         "stm32f4xx_ll_cortex.h": "c",
-        "stm32f4xx_ll_utils.h": "c"
+        "stm32f4xx_ll_utils.h": "c",
+        "usb.h": "c"
     }
 }
