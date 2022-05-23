@@ -249,6 +249,7 @@ void OTG_FS_IRQHandler (void)
             {
                 print ("Transfer finished on EP0\n");
                 sendEnd (0);                               // If data left to send
+                //countTx = 0;
             }
             USB_INEP(0)->DIEPINT = epInt;                // Clear flag              
         }
@@ -260,6 +261,7 @@ void OTG_FS_IRQHandler (void)
             {
                 print ("Transfer finished on EP1\n");
                 sendEnd (1);                               // If data left to send
+                //countTx = 0;
             }
             USB_INEP(1)->DIEPINT = epInt;                // Clear flag             
         }                 
@@ -515,7 +517,7 @@ void sendEnd (const uint8_t ep)
     else countTx = 0;                               // No queue for send
 }
 
-/*void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len)
+void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len)
 {
     if (len < MAX_PACKET_SIZE_EP0)
     {
@@ -526,7 +528,7 @@ void sendEnd (const uint8_t ep)
         send_ep (ep, buf, MAX_PACKET_SIZE_EP0);
         send_ep_long (ep, (uint8_t*) (buf + MAX_PACKET_SIZE_EP0), (len - MAX_PACKET_SIZE_EP0));
     }
-}*/
+}
  
 /* This function reads received data from the buffer */
 /*uint16_t readData(const uint8_t ep, uint8_t *buf)
@@ -556,18 +558,21 @@ void getDesc (uint16_t wValue, uint16_t wLength)
     {
         case DESC_DEVICE:                  // Request device descriptor
         pbuf = (uint8_t*) desc_device; 
-        len = sizeof (desc_device);             
+        len = sizeof (desc_device);
+        print ("DESC_DEVICE, 18\n");
         break;  
         case DESC_CONFIG:                  // Request configuration descriptor
             pbuf = (uint8_t*) desc_config;
             len = sizeof(desc_config);
+            print ("DESC_CONFIG, 67\n");
             break;   
         case DESC_STRING:                  // Request string descriptor
             switch (wValue & 0xFF)         // Request string descriptor
             {
                 case DESC_STR_LANGID:  // Lang
                     pbuf = (uint8_t*) desc_lang;
-                    len = sizeof (desc_lang);   
+                    len = sizeof (desc_lang);
+                    print ("DESC_STR_LANGID, 4\n");   
                     break;                                              
                                         /*case DESC_STR_MFC:     // Manufacturer
                          pbuf = (uint8_t*) desc_vendor, 
@@ -584,6 +589,7 @@ void getDesc (uint16_t wValue, uint16_t wLength)
                 case DESC_STR_CONFIG:  // Config
                     pbuf = (uint8_t*) desc_config;
                     len = sizeof (desc_config);
+                    print ("DESC_STR_CONFIG, 67\n");
                     break;
                 case DESC_STR_INTERFACE:// Interface
                     break;
@@ -599,7 +605,7 @@ void getDesc (uint16_t wValue, uint16_t wLength)
     }
     if (len)
     {    
-        send_ep (0, pbuf, MIN(len,wLength));   
+        sendData (0, pbuf, MIN(len,wLength));   
     }  
 }
  
