@@ -68,9 +68,7 @@
 #define EP1_IN_INT                 0x0002
 #define EP2_IN_INT                 0x0004
 
-#define MAX_PACKET_SIZE_EP0 72
-#define MAX_SIZE                   64U
-
+#define MAX_PACKET_SIZE_EP0 64U
 #define RX_FIFO_SIZE     80 // size is in 32-bit words
 #define TX_FIFO_EP0_SIZE 80 // sum of all FIFO sizes is not grater than 320 words
 #define TX_FIFO_EP1_SIZE 80
@@ -81,6 +79,7 @@ uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
 //uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len);
+//void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void read_ep (const uint8_t ep, uint8_t *buf, const uint8_t len);
 void USB_config (void);
 void RCC_config (void);
@@ -88,10 +87,10 @@ void MCO_config (void);
 void GPIO_config (void);
 void UART_config (void);
 void print (uint8_t* ptr);
-/*void USB_device_setup (uint8_t *buf);
+//void USB_device_setup (uint8_t *buf);
 void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);
-void get_descriptor (uint16_t wValue, uint16_t wLength);*/
+//void get_descriptor (uint16_t wValue, uint16_t wLength);
 
 uint8_t bufRx[72];
 uint8_t *bufTx;
@@ -100,13 +99,11 @@ volatile uint16_t countTx = 0;
 volatile uint16_t countRx = 0;
 void sendEnd(const uint8_t ep);
 void setup(uint8_t *buf);
-void setAddr(uint8_t addr);
 void getDesc(uint16_t wValue, uint16_t wLength);
 void setConfig(void);
 void flushTx(void);
 void flushRx(void);
 void stallTx(uint8_t ep);
-void intr(void); // Interrupt
 void sendData(const uint8_t ep, const uint8_t *buf, uint8_t len); // Sending data   
 uint16_t readData(const uint8_t ep, uint8_t *buf);                // Reciv data
 
