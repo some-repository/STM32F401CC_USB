@@ -116,11 +116,6 @@ void USB_config (void)
     // Device
     USB_OTG_DEV->DCFG |= USB_OTG_DCFG_NZLSOHSK | USB_OTG_DCFG_DSPD_1 | USB_OTG_DCFG_DSPD_0; //Full speed, STALL for all OUT requests
 
-    //Buffers
-    
-    
-    //USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
-    //USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
     USB_OTG_FS->GINTMSK |= /*USB_OTG_GINTMSK_SOFM |*/     // Start of frame interrupt
                            USB_OTG_GINTMSK_USBRST /*|   // Reset interrupt
                            USB_OTG_GINTMSK_ENUMDNEM | // Enumeration done interrupt
@@ -329,12 +324,13 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
     } 
 }
 
-/*void stall_TX_ep (uint8_t ep)
+void stall_TX_ep (uint8_t ep)
 {
     USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_STALL;
-}*/
+    print ("stallTx\n");
+}
 
-/*void USB_device_setup (uint8_t *buf)
+void setup (uint8_t *buf)
 {
     const uint8_t bmRequestType = buf [0];
     const uint8_t bRequest = buf [1];
@@ -356,21 +352,21 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
                 {
                     case GET_DESCRIPTOR:
                     {
-                        print ("GET DESCRIPTOR\n", 15);
-
-                        get_descriptor (wValue, wLength);
+                        print ("GET DESCRIPTOR\n");
+                        getDesc (wValue, wLength);
                         break;
                     }                               
                     case SET_ADDRESS:
                     {
-                        print ("SET ADDRESS\n", 12);
+                        print ("SET ADDRESS\n");
                         
                         set_address (buf [2]);                                                     
                         break;
                     }
                     case SET_CONFIGURATION:
                     {
-                        //setConfig ();
+                        print ("SET_CONFIGURATION\n");
+                        setConfig();
                         break;
                     }
                     case GET_CONFIGURATION:
@@ -393,17 +389,13 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const uint8_t len)
         default:
             break;
     }
-}*/
+}
 
-/*void set_address (uint8_t address)
-{
-    print ("address = ", 10);
-    print (&address, 1);
-    print ("\n", 1);
-    
+void set_address (uint8_t address)
+{  
     USB_OTG_DEV->DCFG |= (((uint32_t) address) << 4); // SEE ERRATA 2.8.4
     send_ep (0, 0, 0); 
-}*/
+}
 
 /*void get_descriptor (uint16_t wValue, uint16_t wLength)
 {
@@ -490,8 +482,6 @@ int main (void)
     //GPIO_config ();
     UART_config ();
     USB_config ();
-    //init ();
-
     print ("print test\n");
 
     while (1) 
@@ -500,17 +490,17 @@ int main (void)
     }
 }
 //-------------------------------------------------------------------
-/* This function is sending data */
-void sendData(const uint8_t ep, const uint8_t *buf, uint8_t len)
+// This function sends data
+void sendData (const uint8_t ep, const uint8_t *buf, uint8_t len)
 {
- while(countTx);
- countTx = len;                                  // Save all len
- if(len > MAX_SIZE)                              // Larger maximum size?
-          {                                          // Create queue for send
-             len = MAX_SIZE;                           // Set maximum size
-             bufTx =(uint8_t*) buf;                    //   Save ptr for new send
-            }       
- send_ep (ep, buf, len);                             // Send data           
+    while (countTx);
+    countTx = len;                                  // Save all len
+    if(len > MAX_SIZE)                              // Larger maximum size?
+    {                                          // Create queue for send
+        len = MAX_SIZE;                           // Set maximum size
+        bufTx =(uint8_t*) buf;                    //   Save ptr for new send
+    }       
+    send_ep (ep, buf, len);                             // Send data           
 }
  
  
@@ -545,82 +535,26 @@ void sendEnd(const uint8_t ep)
  return len;
 }*/
  
-void setup(uint8_t *buf)
+void getDesc (uint16_t wValue, uint16_t wLength)
 {
- const uint8_t bmRequestType = buf[0];
- const uint8_t bRequest = buf[1];
- const uint16_t wValue = buf[2] | ((uint16_t)buf[3] << 8);
- const uint16_t wIndex = buf[4] | ((uint16_t)buf[5] << 8);  
- const uint16_t wLength = buf[6] | ((uint16_t)buf[7] << 8); 
- uint8_t data[8];
- switch(bmRequestType & 0x1FU)
-       {
-          case REQ_DEVICE: 
-                     switch(bmRequestType & REQ_MASK)
-                               {
-                                  case REQ_CLASS:
-                                      case REQ_VENDOR:
-                                        break;
-                                        case REQ_STANDARD:
-                                        switch(bRequest)
-                                              {
-                                                 case GET_DESCRIPTOR:
-                                                        print ("GET_DESCRIPTOR\n");
-                                                        getDesc(wValue, wLength);
-                                                 break; 
-                                                     case SET_ADDRESS:
-                                                     print ("SET_ADDRESS\n");
-                                                          setAddr(buf[2]);                                                     
-                                                     break;
-                                                     case SET_CONFIGURATION:
-                                                            print ("SET_CONFIGURATION\n");
-                                                            setConfig();
-                           break;
-                           case GET_CONFIGURATION:
-                           break;
-                           case GET_STATUS:
-                           break;
-                           case SET_FEATURE:
-                           break;
-                           case CLEAR_FEATURE:
-                           break;
-                           default:
-                           break;
-                                                    }                                       
-                                        break;
-                                     }
-                break;
-            case REQ_INTERFACE:
-             
-             sendData(0, data, wLength);
-             if(bRequest == 34) countRx = 0;                
-        break;              
-            case REQ_ENDPOINT:  
-                break;
-             }
-} 
- 
- 
-void getDesc(uint16_t wValue, uint16_t wLength)
-{
- uint8_t *pbuf;
- uint8_t len = 0;
- switch(wValue >> 8)    
-       {
-          case DESC_DEVICE:                  // Request device descriptor
-                       pbuf = (uint8_t*)desc_device; 
-             len = sizeof(desc_device);             
+    uint8_t *pbuf;
+    uint8_t len = 0;
+    switch(wValue >> 8)    
+    {
+        case DESC_DEVICE:                  // Request device descriptor
+        pbuf = (uint8_t*)desc_device; 
+        len = sizeof(desc_device);             
         break;  
         case DESC_CONFIG:                  // Request configuration descriptor
-                       pbuf = (uint8_t*) desc_config;
-                     len = sizeof(desc_config);
-        break;   
+            pbuf = (uint8_t*) desc_config;
+            len = sizeof(desc_config);
+            break;   
         case DESC_STRING:                  // Request string descriptor
-                     switch(wValue & 0xFF)         // Request string descriptor
-                                   {
-                                      case DESC_STR_LANGID:  // Lang
-                                               pbuf = (uint8_t*) desc_lang;
-                                                 len = sizeof(desc_lang);   
+            switch(wValue & 0xFF)         // Request string descriptor
+            {
+                case DESC_STR_LANGID:  // Lang
+                    pbuf = (uint8_t*) desc_lang;
+                    len = sizeof(desc_lang);   
                     break;                                              
                                         /*case DESC_STR_MFC:     // Manufacturer
                          pbuf = (uint8_t*) desc_vendor, 
@@ -634,33 +568,27 @@ void getDesc(uint16_t wValue, uint16_t wLength)
                          pbuf = (uint8_t*) desc_serial;
                                      len = sizeof(desc_serial); 
                     break;*/
-                                      case DESC_STR_CONFIG:  // Config
-                                                 pbuf = (uint8_t*) desc_config;
-                                         len = sizeof(desc_config);
-                                      break;
-                    case DESC_STR_INTERFACE:// Interface
+                case DESC_STR_CONFIG:  // Config
+                    pbuf = (uint8_t*) desc_config;
+                    len = sizeof(desc_config);
                     break;
-                    default:
-                                        break;
-                                     }                          
-                break;                                      
-                case DESC_OTHER_CONFIG:
-                       stallTx(0); // we don't know how to handle this request                      
-          break;
-             }
- if(len)
-   {    
-      sendData(0, pbuf, MIN(len,wLength));   
-     }  
+                case DESC_STR_INTERFACE:// Interface
+                    break;
+                default:
+                    break;
+                break;
+            }                                                            
+        case DESC_OTHER_CONFIG:
+            stall_TX_ep (0); // we don't know how to handle this request                      
+            break;
+        default:
+            break;
+    }
+    if(len)
+    {    
+        sendData (0, pbuf, MIN(len,wLength));   
+    }  
 }
- 
- 
-void setAddr(uint8_t addr)
-{
- USB_OTG_DEV->DCFG |= ((uint32_t)addr << 4);
- send_ep (0, 0, 0); 
-}
- 
  
 void setConfig(void)
 {               
@@ -688,26 +616,17 @@ void setConfig(void)
                            MAX_SIZE;                            // Max packet size
  send_ep (0, 0, 0);
 }
- 
- 
-void flushTx(void)
+
+void flushTx (void)
 {
- print ("flushTx\n");
- USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | (1 << 10);
- while(USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
+    print ("flushTx\n");
+    USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_TXFFLSH | (1 << 10);
+    while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH);
 }
  
- 
-void flushRx(void)
+void flushRx (void)
 {
- print ("flushRx\n");
- USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_RXFFLSH;
- while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_RXFFLSH);
-}
- 
- 
-void stallTx(uint8_t ep)
-{
- print ("stallTx\n");
- USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_STALL;
+    print ("flushRx\n");
+    USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_RXFFLSH;
+    while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_RXFFLSH);
 }
