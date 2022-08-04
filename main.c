@@ -263,7 +263,7 @@ void OTG_FS_IRQHandler (void)
             {
                 print (" > Transfer finished on EP1");
                 //sendEnd (1);                               // If data left to send
-                //countTx = 0;
+                countTx = 0;
             }
             USB_INEP(1)->DIEPINT = epInt;                // Clear flag             
         }                 
@@ -288,13 +288,13 @@ void read_ep (const uint8_t ep, uint8_t *buf, const size_t len)
     uint16_t i; 
     uint32_t word;
     for (i = 0; i < ((len + 3) / 4); i++)
-        {
-            word = USB_FIFO(ep); //read 32 bit word from RX FIFO
-            buf [4 * i] = (uint8_t) (word & 0xFF);
-            buf [(4 * i) + 1] = (uint8_t) ((word & 0xFF00) >> 8);
-            buf [(4 * i) + 2] = (uint8_t) ((word & 0xFF0000) >> 16);
-            buf [(4 * i) + 3] = (uint8_t) ((word & 0xFF000000) >> 24);
-        }
+    {
+        word = USB_FIFO(ep); //read 32 bit word from RX FIFO
+        buf [4 * i] = (uint8_t) (word & 0xFF);
+        buf [(4 * i) + 1] = (uint8_t) ((word & 0xFF00) >> 8);
+        buf [(4 * i) + 2] = (uint8_t) ((word & 0xFF0000) >> 16);
+        buf [(4 * i) + 3] = (uint8_t) ((word & 0xFF000000) >> 24);
+    }
 }
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len)
@@ -312,7 +312,8 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len)
 
     size_t i, j;
     uint32_t tmp = 0;
-    USB_INEP(ep)->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len;       // one packet of len bytes
+    countTx++;
+    USB_INEP(ep)->DIEPTSIZ = (countTx << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len; // countTx packets
     USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;   // Enable endpoint, clear NAK bit     
     for (i = 0; i < ((len + 3) / 4); i++) 
     {
