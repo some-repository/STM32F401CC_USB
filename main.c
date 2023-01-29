@@ -6,6 +6,7 @@
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_usart.h"
+#include "stm32f4xx_ll_spi.h"
 #include "stm32f4xx_ll_cortex.h"
 #include "stm32f4xx_ll_utils.h"
 #include <stddef.h> 
@@ -75,6 +76,36 @@ void UART_config (void)
     LL_USART_Enable (USART1);
 }
 
+void SPI_config (void)
+{
+    LL_AHB1_GRP1_EnableClock (LL_AHB1_GRP1_PERIPH_GPIOA);
+    LL_APB2_GRP1_EnableClock (LL_APB2_GRP1_PERIPH_SPI1);
+    // PA5 (SCK)
+    LL_GPIO_SetPinMode (GPIOA, LL_GPIO_PIN_5, LL_GPIO_MODE_ALTERNATE);
+    LL_GPIO_SetPinSpeed (GPIOA, LL_GPIO_PIN_5, LL_GPIO_SPEED_FREQ_VERY_HIGH);
+    LL_GPIO_SetAFPin_0_7 (GPIOA, LL_GPIO_PIN_5, LL_GPIO_AF_5);
+    // PA6 (MISO)
+    LL_GPIO_SetPinMode (GPIOA, LL_GPIO_PIN_6, LL_GPIO_MODE_ALTERNATE);
+    LL_GPIO_SetPinSpeed (GPIOA, LL_GPIO_PIN_6, LL_GPIO_SPEED_FREQ_VERY_HIGH);
+    LL_GPIO_SetAFPin_0_7 (GPIOA, LL_GPIO_PIN_6, LL_GPIO_AF_5);
+    // PA7 (MOSI)
+    LL_GPIO_SetPinMode (GPIOA, LL_GPIO_PIN_7, LL_GPIO_MODE_ALTERNATE);
+    LL_GPIO_SetPinSpeed (GPIOA, LL_GPIO_PIN_7, LL_GPIO_SPEED_FREQ_VERY_HIGH);
+    LL_GPIO_SetAFPin_0_7 (GPIOA, LL_GPIO_PIN_7, LL_GPIO_AF_5);
+
+    LL_SPI_SetClockPolarity (SPI1, LL_SPI_POLARITY_HIGH);
+    LL_SPI_SetClockPhase (SPI1, LL_SPI_PHASE_2EDGE);
+    LL_SPI_SetMode (SPI1, LL_SPI_MODE_MASTER);
+    LL_SPI_SetBaudRatePrescaler (SPI1, LL_SPI_BAUDRATEPRESCALER_DIV2);
+    LL_SPI_SetTransferBitOrder (SPI1, LL_SPI_MSB_FIRST);
+    LL_SPI_SetNSSMode (SPI1, LL_SPI_NSS_SOFT);
+    LL_SPI_SetTransferDirection (SPI1, LL_SPI_HALF_DUPLEX_TX);
+    LL_SPI_SetDataWidth (SPI1, LL_SPI_DATAWIDTH_16BIT);
+    LL_SPI_EnableIT_TXE (SPI1);
+    NVIC_SetPriority(SPI1_IRQn, 2);
+    NVIC_EnableIRQ (SPI1_IRQn);
+}
+
 void print (const char* ptr)
 {
     uint16_t i = 0;
@@ -109,18 +140,17 @@ void USB_config (void)
     USB_OTG_FS->GINTSTS = 0; // clear OTG_FS_GINTSTS register at initialization before unmasking the interrupt bits
     USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_IEPINT |   // Enable USB IN TX endpoint interrupt
                            USB_OTG_GINTMSK_OEPINT |   // Enable USB OUT RX endpoint interrupt
-                           USB_OTG_GINTMSK_RXFLVLM/* |  // USB recieving
-                           USB_OTG_GINTMSK_MMISM |    // OTG interrupt
-                           USB_OTG_GINTMSK_OTGINT*/;    // Mode mismatch interrupt
+                           USB_OTG_GINTMSK_RXFLVLM;   // USB recieving
+
     USB_OTG_FS->GAHBCFG = USB_OTG_GAHBCFG_GINT; // GINTMSK = 1
     // Device
     USB_OTG_DEV->DCFG |= USB_OTG_DCFG_NZLSOHSK | USB_OTG_DCFG_DSPD_1 | USB_OTG_DCFG_DSPD_0; //Full speed, STALL for all OUT requests
 
-    USB_OTG_FS->GINTMSK |= /*USB_OTG_GINTMSK_SOFM |*/     // Start of frame interrupt
-                           USB_OTG_GINTMSK_USBRST |   // Reset interrupt
-                           USB_OTG_GINTMSK_ENUMDNEM /* | // Enumeration done interrupt
-                           USB_OTG_GINTMSK_USBSUSPM | // USB suspend interrupt
-                           USB_OTG_GINTMSK_ESUSPM*/;    // Early USB suspend interrupt
+    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST |    // Reset interrupt
+                           USB_OTG_GINTMSK_ENUMDNEM;   // Enumeration done interrupt
+                           //USB_OTG_GINTMSK_GINAKEFFM | // Global non-periodic IN NAK effective interrupt
+                           //USB_OTG_GINTMSK_GONAKEFFM;  // Global non-periodic OUT NAK effective interrupt
+    
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN; // enable USB PHY
     // Interrupt
     NVIC_SetPriority(OTG_FS_IRQn, 1);
@@ -139,10 +169,9 @@ void OTG_FS_IRQHandler (void)
         //flushTx();                                     // Clear tx buffer
         for (uint8_t i = 0U; i < 4; i++)                 // Clear any pending EP flags
         {
-            //USB_INEP(i)->DIEPINT = 0xFB7FU;
             USB_INEP(i)->DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
             USB_INEP(i)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-            //USB_OUTEP(i)->DOEPINT = 0xFB7FU;
+
             USB_OUTEP(i)->DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
             USB_OUTEP(i)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;               
         }
@@ -183,12 +212,14 @@ void OTG_FS_IRQHandler (void)
         uint8_t pktsts = ((grxstsp & USB_OTG_GRXSTSP_PKTSTS) >> USB_OTG_GRXSTSP_PKTSTS_Pos); // Packet status
         uint8_t dpid = ((grxstsp & USB_OTG_GRXSTSP_DPID) >> USB_OTG_GRXSTSP_DPID_Pos);       // Data PID
         uint8_t epnum = ((grxstsp & USB_OTG_GRXSTSP_EPNUM) >> USB_OTG_GRXSTSP_EPNUM_Pos);    // Indicates EP number to which the current received packet belongs
+
         if (bcnt != 0) // Reading an empty receive FIFO can result in undefined core behavior
         {
             if (pktsts == DATA)              // Data
             {                        
                 print (" > DATA packet received"); 
                 read_ep (epnum, &bufRx [countRx], bcnt); // Read data
+                //packet_parser (bufRx, bcnt);
                 send_ep (epnum, &bufRx [countRx], bcnt); // Echo data back
                 print (&bufRx [countRx]);
                 epNumLastRx = epnum; // Save last endpoint num
@@ -417,63 +448,6 @@ int main (void)
     }
 }
 //-------------------------------------------------------------------
-// This function sends data
-/*void sendData (const uint8_t ep, const uint8_t *buf, size_t len)
-{
-    while (countTx);
-    countTx = len;                                  // Save all len
-    if (len > MAX_PACKET_SIZE_EP0)                              // Larger maximum size?
-    {                                          // Create queue for send
-        len = MAX_PACKET_SIZE_EP0;                           // Set maximum size
-        bufTx = buf;                    //   Save ptr for new send
-    }       
-    send_ep (ep, buf, len);                             // Send data           
-}*/
- 
- 
-/*void sendEnd (const uint8_t ep) 
-{
-    if (countTx > MAX_PACKET_SIZE_EP0)                          // If queue for send?
-    {
-        bufTx = bufTx + MAX_PACKET_SIZE_EP0;       // Calculating ptr for send
-        countTx -= MAX_PACKET_SIZE_EP0;                           // Calculating length
-        send_ep (ep, bufTx, countTx);                    // Send data        
-    }
-    else countTx = 0;                               // No queue for send
-}*/
-
-/*void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len)
-{
-    if (len < MAX_PACKET_SIZE_EP0)
-    {
-        send_ep (ep, buf, len);
-    }
-    else
-    {
-        send_ep (ep, buf, MAX_PACKET_SIZE_EP0);
-        send_ep_long (ep, (uint8_t*) (buf + MAX_PACKET_SIZE_EP0), (len - MAX_PACKET_SIZE_EP0));
-    }
-}*/
- 
-/* This function reads received data from the buffer */
-/*uint16_t readData(const uint8_t ep, uint8_t *buf)
-{
- uint16_t i, len = 0;
- if(ep == epNumLastRx)                                                           
-   {
-    if(countRx)                                      // If read data
-          {
-             for(i = 0; i < countRx; i++)
-                  {
-                     *buf++ = bufRx[i];                        // Copy data
-                    }
-             len = countRx;
-       countRx = 0; 
-       epNumLastRx = 0;                 
-            }
-   }         
- return len;
-}*/
  
 void getDesc (uint32_t wValue, uint32_t wLength)
 {
@@ -537,12 +511,7 @@ void setConfig (void)
                              USB_OTG_DOEPCTL_EPTYP_1 |           // Endpoint type bulk
                              USB_OTG_DOEPCTL_USBAEP |            // Active endpoint 
                              MAX_PACKET_SIZE_EP0;                // Max packet size
-    /* Open Command EP2 IN  */
-    /*USB_INEP(2)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM |     // Set DATA0
-                            (1 << USB_OTG_DIEPCTL_TXFNUM_Pos)|   // TxFIFO number
-                            USB_OTG_DIEPCTL_EPTYP |              // Endpoint type Interrupt
-                            USB_OTG_DIEPCTL_USBAEP |             // Active endpoint
-                            MAX_PACKET_SIZE_EP0;                 // Max packet size*/
+
     USB_OTG_DEV->DAINTMSK = EP1_OUT_INT | EP0_OUT_INT | EP1_IN_INT | EP0_IN_INT; // Enable interrupts for EP0 and EP1
     send_ep (0, 0, 0);
 }
@@ -559,4 +528,9 @@ void flushRx (void)
     print ("flushRx\n");
     USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_RXFFLSH;
     while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_RXFFLSH);
+}
+
+void packet_parser (uint8_t *buf, const size_t len)
+{
+
 }

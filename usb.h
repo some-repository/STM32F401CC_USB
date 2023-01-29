@@ -75,7 +75,7 @@
 #define TX_FIFO_EP2_SIZE 80
 #define UART_SPEED 115200
 
-uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
+//uint8_t bufRx [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
 //uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len);
@@ -86,6 +86,7 @@ void RCC_config (void);
 void MCO_config (void);
 void GPIO_config (void);
 void UART_config (void);
+void SPI_config (void);
 void print (const char* ptr);
 //void USB_device_setup (uint8_t *buf);
 void set_address (uint8_t address);
@@ -103,8 +104,8 @@ void getDesc (uint32_t wValue, uint32_t wLength);
 void setConfig (void);
 void flushTx (void);
 void flushRx (void);
-//void sendData (const uint8_t ep, const uint8_t *buf, size_t len); // Sending data   
-//uint16_t readData (const uint8_t ep, uint8_t *buf);                // Reciv data
+
+void packet_parser (uint8_t *buf, const size_t len);
 
 const uint8_t desc_device [] =
 {
