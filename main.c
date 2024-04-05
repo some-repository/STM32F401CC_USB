@@ -186,8 +186,8 @@ void OTG_FS_IRQHandler (void)
         // buffers
         USB_OTG_FS->GRXFSIZ = RX_FIFO_SIZE; // size is in 32-bit words
         USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (TX_FIFO_EP0_SIZE << 16) | RX_FIFO_SIZE; // Set the position and size of the EP0 transmit buffer
-        USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
-        USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
+        USB_OTG_FS->DIEPTXF[0] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
+        //USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
         USB_OUTEP(0)->DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
                              USB_OTG_DOEPTSIZ_STUPCNT | (3 * 8); // Allow 3 setup packets of 8 bytes                                  
         USB_OTG_DEV->DCFG &= ~USB_OTG_DCFG_DAD;         // Clear address    
@@ -223,7 +223,7 @@ void OTG_FS_IRQHandler (void)
                 send_ep (epnum, &bufRx [countRx], bcnt); // Echo data back
                 print (&bufRx [countRx]);
                 epNumLastRx = epnum; // Save last endpoint num
-                countRx += bcnt;     // Save all len
+                //countRx += bcnt;     // Save all len
             }
             else if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0) && (epnum == 0))              // Setup data packet received
             {    
