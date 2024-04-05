@@ -118,9 +118,11 @@ void USB_config (void)
 
     USB_OTG_FS->GINTMSK |= /*USB_OTG_GINTMSK_SOFM |*/     // Start of frame interrupt
                            USB_OTG_GINTMSK_USBRST |   // Reset interrupt
-                           USB_OTG_GINTMSK_ENUMDNEM /* | // Enumeration done interrupt
+                           USB_OTG_GINTMSK_ENUMDNEM; /* | // Enumeration done interrupt
                            USB_OTG_GINTMSK_USBSUSPM | // USB suspend interrupt
-                           USB_OTG_GINTMSK_ESUSPM*/;    // Early USB suspend interrupt
+                           USB_OTG_GINTMSK_ESUSPM |    // Early USB suspend interrupt
+                           USB_OTG_GINTMSK_GINAKEFFM | // Global non-periodic IN NAK effective interrupt
+                           USB_OTG_GINTMSK_GONAKEFFM; */ // Global non-periodic OUT NAK effective interrupt
     USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_PWRDWN; // enable USB PHY
     // Interrupt
     NVIC_SetPriority(OTG_FS_IRQn, 1);
@@ -139,10 +141,8 @@ void OTG_FS_IRQHandler (void)
         //flushTx();                                     // Clear tx buffer
         for (uint8_t i = 0U; i < 4; i++)                 // Clear any pending EP flags
         {
-            //USB_INEP(i)->DIEPINT = 0xFB7FU;
             USB_INEP(i)->DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
             USB_INEP(i)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-            //USB_OUTEP(i)->DOEPINT = 0xFB7FU;
             USB_OUTEP(i)->DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
             USB_OUTEP(i)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;               
         }
@@ -157,8 +157,8 @@ void OTG_FS_IRQHandler (void)
         // buffers
         USB_OTG_FS->GRXFSIZ = RX_FIFO_SIZE; // size is in 32-bit words
         USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (TX_FIFO_EP0_SIZE << 16) | RX_FIFO_SIZE; // Set the position and size of the EP0 transmit buffer
-        USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
-        USB_OTG_FS->DIEPTXF[2] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
+        USB_OTG_FS->DIEPTXF[0] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
+        //USB_OTG_FS->DIEPTXF[1] = (TX_FIFO_EP2_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE + TX_FIFO_EP1_SIZE);
         USB_OUTEP(0)->DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
                              USB_OTG_DOEPTSIZ_STUPCNT | (3 * 8); // Allow 3 setup packets of 8 bytes                                  
         USB_OTG_DEV->DCFG &= ~USB_OTG_DCFG_DAD;         // Clear address    
@@ -183,6 +183,7 @@ void OTG_FS_IRQHandler (void)
         uint8_t pktsts = ((grxstsp & USB_OTG_GRXSTSP_PKTSTS) >> USB_OTG_GRXSTSP_PKTSTS_Pos); // Packet status
         uint8_t dpid = ((grxstsp & USB_OTG_GRXSTSP_DPID) >> USB_OTG_GRXSTSP_DPID_Pos);       // Data PID
         uint8_t epnum = ((grxstsp & USB_OTG_GRXSTSP_EPNUM) >> USB_OTG_GRXSTSP_EPNUM_Pos);    // Indicates EP number to which the current received packet belongs
+
         if (bcnt != 0) // Reading an empty receive FIFO can result in undefined core behavior
         {
             if (pktsts == DATA)              // Data
@@ -192,7 +193,7 @@ void OTG_FS_IRQHandler (void)
                 send_ep (epnum, &bufRx [countRx], bcnt); // Echo data back
                 print (&bufRx [countRx]);
                 epNumLastRx = epnum; // Save last endpoint num
-                countRx += bcnt;     // Save all len
+                //countRx += bcnt;     // Save all len
             }
             else if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0) && (epnum == 0))              // Setup data packet received
             {    

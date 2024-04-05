@@ -75,9 +75,6 @@
 #define TX_FIFO_EP2_SIZE 80
 #define UART_SPEED 115200
 
-uint8_t bufRX [MAX_PACKET_SIZE_EP0] = {0}; // max packet size for EP0
-//uint8_t bufTX [MAX_PACKET_SIZE_EP0] = {0};
-
 void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len);
 //void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void read_ep (const uint8_t ep, uint8_t *buf, const size_t len);
