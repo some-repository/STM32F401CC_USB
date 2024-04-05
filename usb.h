@@ -1,3 +1,8 @@
+/* Define to prevent recursive inclusion -------------------------------------*/
+#ifndef USB_H
+#define USB_H
+/* Define to prevent recursive inclusion -------------------------------------*/
+
 #define USB_OTG_DEV  ((USB_OTG_DeviceTypeDef *) ((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE))
 #define USB_INEP(i)  ((USB_OTG_INEndpointTypeDef *) (( uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (i) * USB_OTG_EP_REG_SIZE))
 #define USB_OUTEP(i) ((USB_OTG_OUTEndpointTypeDef *) ((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (i) * USB_OTG_EP_REG_SIZE))
@@ -89,11 +94,11 @@ void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);
 //void get_descriptor (uint16_t wValue, uint16_t wLength);
 
-uint8_t bufRx [512];
-const uint8_t *bufTx; // pointer to constant variable
-uint8_t epNumLastRx = 0;
-volatile size_t countTx = 0;
-volatile size_t countRx = 0;
+extern uint8_t bufRx [];
+extern uint8_t epNumLastRx;
+extern volatile size_t countTx;
+extern volatile size_t countRx;
+
 //void sendEnd (const uint8_t ep);
 void setup (uint8_t *buf);
 void getDesc (uint32_t wValue, uint32_t wLength);
@@ -103,78 +108,8 @@ void flushRx (void);
 //void sendData (const uint8_t ep, const uint8_t *buf, size_t len); // Sending data   
 //uint16_t readData (const uint8_t ep, uint8_t *buf);                // Reciv data
 
-const uint8_t desc_device [] =
-{
-    0x12,                       /* bLength */
-    0x01,                       /* bDescriptorType */
-    0x10,                       /* bcdUSB, 1.1 */
-    0x01,
-    0xFF,                       /* bDeviceClass */
-    0x80,                       /* bDeviceSubClass */
-    0x55,                       /* bDeviceProtocol */
-    0x40,                       /* bMaxPacketSize */
-    0x48,                       /* idVendor, LOBYTE(USBD_VID) */
-    0x43,                       /* idVendor, HIBYTE(USBD_VID) */
-    0xE0,                       /* idProduct, LOBYTE(USBD_PID) */
-    0x55,                       /* idProduct, HIBYTE(USBD_PID) */
-    0x00,                       /* bcdDevice rel. 1.00 */
-    0x01,
-    0x00,                       /* Index of manufacturer string */
-    0x00,                       /* Index of product string */
-    0x00,                       /* Index of serial number string */
-    1                           /* bNumConfigurations */
-};
- 
- 
-const uint8_t desc_config[]=
-{
-    /* Configuration Descriptor */
-    0x09,                                       /* bLength: Configuration Descriptor size */
-    0x02,                                       /* bDescriptorType: Configuration */
-    0x20,                                       /* wTotalLength:no of returned bytes */
-    0x00,
-    0x01,                                       /* bNumInterfaces: 1 interface */
-    0x01,                                       /* bConfigurationValue: Configuration value */
-    0x00,                                       /* iConfiguration: Index of string descriptor describing the configuration */
-    0x80,                                       /* bmAttributes: Bus Powered according to user configuration */
-    0x32,                                       /* MaxPower 100 mA */
-    /*---------------------------------------------------------------------------*/
- 
-    /* Interface Descriptor */
-    0x09,                                       /* bLength: Interface Descriptor size */
-    0x04,                                       /* bDescriptorType: Interface */
-    0x00,                                       /* bInterfaceNumber: Number of Interface */
-    0x00,                                       /* bAlternateSetting: Alternate setting */
-    0x02,                                       /* bNumEndpoints: 2 endpoints used */
-    0xFF,                                       /* bInterfaceClass: Custom Interface Class */
-    0x80,                                       /* bInterfaceSubClass: Custom */
-    0x55,                                       /* bInterfaceProtocol: Custom */
-    0x00,                                       /* iInterface: */
- 
-    /* Endpoint 1 IN Descriptor */
-    0x07,                                       /* bLength: Endpoint Descriptor size */
-    0x05,                                       /* bDescriptorType: Endpoint */
-    0x81,                                       /* bEndpointAddress */
-    0x02,                                       /* bmAttributes: Bulk */
-    64U,                                        /* wMaxPacketSize: */
-    0x00,
-    0x00,                                       /* bInterval: */
- 
-    /* Endpoint 1 OUT Descriptor */
-    0x07,                                       /* bLength: Endpoint Descriptor size */
-    0x05,                                       /* bDescriptorType: Endpoint */
-    0x01,                                       /* bEndpointAddress */
-    0x02,                                       /* bmAttributes: Bulk */
-    64U,                                        /* wMaxPacketSize: */
-    0x00,
-    0x00                                        /* bInterval: */
-};
- 
- 
-const uint8_t desc_lang[] =
-{
-    0x04, // descriptor length
-    0x03, // descriptor type - string desc
-    0x09, // N bytes of LangID
-    0x04  // LangID = 0x0409: U.S. English
-};
+extern const uint8_t desc_device [];
+extern const uint8_t desc_config [];
+extern const uint8_t desc_lang [];
+
+#endif /* USB_H */
