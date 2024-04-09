@@ -78,21 +78,19 @@
 #define TX_FIFO_EP0_SIZE 80 // sum of all FIFO sizes is not grater than 320 words
 #define TX_FIFO_EP1_SIZE 80
 #define TX_FIFO_EP2_SIZE 80
+
 #define UART_SPEED 115200
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len);
 //void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void read_ep (const uint8_t ep, uint8_t *buf, const size_t len);
 void USB_config (void);
-void RCC_config (void);
-void MCO_config (void);
-void GPIO_config (void);
-void UART_config (void);
-void print (const char* ptr);
+void USB_RST_interrupt_handler (void);
 //void USB_device_setup (uint8_t *buf);
 void set_address (uint8_t address);
 void stall_TX_ep (uint8_t ep);
 //void get_descriptor (uint16_t wValue, uint16_t wLength);
+void print (const char* ptr);
 
 extern uint8_t bufRx [];
 extern uint8_t epNumLastRx;

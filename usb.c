@@ -2,6 +2,7 @@
 #include "stm32f4xx_ll_rcc.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
+#include "stm32f4xx_ll_usart.h" // it's for UART debug print
 #include <stddef.h> 
 #include "usb.h"
 
@@ -314,6 +315,35 @@ void setConfig (void)
     send_ep (0, 0, 0);
 }
 
+void USB_RST_interrupt_handler (void)
+{
+    USB_OTG_DEV->DCTL &= ~USB_OTG_DCTL_RWUSIG;     // Wakeup signal disable    
+    for (uint8_t i = 0U; i < 4; i++)                 // Clear any pending EP flags
+    {
+        USB_INEP(i)->DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
+        USB_INEP(i)->DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
+        USB_OUTEP(i)->DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
+        USB_OUTEP(i)->DOEPCTL |= USB_OTG_DOEPCTL_SNAK;               
+    }
+
+    USB_OTG_DEV->DAINTMSK |= 0x10001U;              // EP0 OUT, EP0 IN Interupt
+    USB_OTG_DEV->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | // Enable setup-done interrupt
+                            USB_OTG_DOEPMSK_EPDM  | // Enable EP-disabled irq
+                            USB_OTG_DOEPMSK_XFRCM;  // Enable tx-done interrupt                                   
+    USB_OTG_DEV->DIEPMSK |= USB_OTG_DIEPMSK_TOM   | // Timeout irq
+                            USB_OTG_DIEPMSK_XFRCM |
+                            USB_OTG_DIEPMSK_EPDM;
+    // buffers
+    USB_OTG_FS->GRXFSIZ = RX_FIFO_SIZE; // size is in 32-bit words
+    USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (TX_FIFO_EP0_SIZE << 16) | RX_FIFO_SIZE; // Set the position and size of the EP0 transmit buffer
+    USB_OTG_FS->DIEPTXF[0] = (TX_FIFO_EP1_SIZE << 16) | (RX_FIFO_SIZE + TX_FIFO_EP0_SIZE); // Set the position and size of the transmit buffer     
+    USB_OUTEP(0)->DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+                             USB_OTG_DOEPTSIZ_STUPCNT | (3 * 8); // Allow 3 setup packets of 8 bytes                                  
+    USB_OTG_DEV->DCFG &= ~USB_OTG_DCFG_DAD;         // Clear address    
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;   // Clear the flag by writing 1
+    USB_OUTEP(0)->DOEPCTL = USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK; // Enable endpoint, Clear NAK bit
+}
+
 void flushTx (void) // clear data stored in TX FIFO (data will be lost)
 {
     print ("flushTx\n");
@@ -326,4 +356,16 @@ void flushRx (void) // clear data stored in RX FIFO (data will be lost)
     print ("flushRx\n");
     USB_OTG_FS->GRSTCTL = USB_OTG_GRSTCTL_RXFFLSH;
     while (USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_RXFFLSH);
+}
+
+void print (const char* ptr) // UART debug print
+{
+    uint16_t i = 0;
+    uint8_t byte = 0;
+    while ((byte = (uint8_t) ptr [i]))
+    {
+        while (!LL_USART_IsActiveFlag_TXE (USART1));
+        LL_USART_TransmitData8 (USART1, byte);
+        i++;
+    }
 }
