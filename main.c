@@ -111,16 +111,16 @@ void OTG_FS_IRQHandler (void)
             if (pktsts == DATA)              // Data
             {                        
                 print (" > DATA packet received"); 
-                read_ep (epnum, &bufRx [countRx], bcnt); // Read data
-                send_ep (epnum, &bufRx [countRx], bcnt); // Echo data back
-                print (&bufRx [countRx]);
-                epNumLastRx = epnum; // Save last endpoint num
-                //countRx += bcnt;     // Save all len
+                read_ep (epnum, &bufRX [countRX], bcnt); // Read data
+                send_ep (epnum, &bufRX [countRX], bcnt); // Echo data back
+                print (&bufRX [countRX]);
+                //epNumLastRX = epnum; // Save last endpoint num
+                //countRX += bcnt;     // Save all len
             }
             else if ((pktsts == SETUP) && (bcnt == 0x8) && (dpid == 0) && (epnum == 0))              // Setup data packet received
             {    
                 print (" > SETUP packet received");                    // Read setup packet
-                read_ep (epnum, bufRx, bcnt);
+                read_ep (epnum, bufRX, bcnt);
             }
         }
         if (pktsts == SETUP_Done)
@@ -145,7 +145,7 @@ void OTG_FS_IRQHandler (void)
             if (epInt & USB_OTG_DOEPINT_STUP)
             {
                 print (" > STUP");
-                setup (bufRx);                            // Parse setup packet
+                setup (bufRX);                            // Parse setup packet
             }
             USB_OUTEP(0)->DOEPINT = epInt;              // Clear flag
             USB_OUTEP(0)->DOEPCTL |= USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA; // Enable endpoint, Clear NAK bit
@@ -184,7 +184,6 @@ void OTG_FS_IRQHandler (void)
             if (epInt & USB_OTG_DIEPINT_XFRC)
             {
                 print (" > Transfer finished on EP1");
-                countTx = 0;
             }
             USB_INEP(1)->DIEPINT = epInt;                // Clear flag             
         }                 

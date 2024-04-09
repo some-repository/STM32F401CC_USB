@@ -5,6 +5,7 @@
         "stm32f4xx_ll_cortex.h": "c",
         "stm32f4xx_ll_utils.h": "c",
         "usb.h": "c",
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "stm32f4xx_ll_usart.h": "c"
     }
 }

@@ -9,6 +9,7 @@
 #define USB_FIFO(i)  *(volatile uint32_t *)(USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + ((i) * USB_OTG_FIFO_SIZE))
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 
 #define SETUP_Done  0x04
 #define SETUP       0x06
@@ -74,6 +75,7 @@
 #define EP2_IN_INT                 0x0004
 
 #define MAX_PACKET_SIZE_EP0 64U
+#define MAX_PACKET_SIZE_EP1 64U
 #define RX_FIFO_SIZE     80 // size is in 32-bit words
 #define TX_FIFO_EP0_SIZE 80 // sum of all FIFO sizes is not grater than 320 words
 #define TX_FIFO_EP1_SIZE 80
@@ -82,7 +84,6 @@
 #define UART_SPEED 115200
 
 void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len);
-//void send_ep_long (const uint8_t ep, const uint8_t *buf, const uint8_t len);
 void read_ep (const uint8_t ep, uint8_t *buf, const size_t len);
 void USB_config (void);
 void USB_RST_interrupt_handler (void);
@@ -92,19 +93,16 @@ void stall_TX_ep (uint8_t ep);
 //void get_descriptor (uint16_t wValue, uint16_t wLength);
 void print (const char* ptr);
 
-extern uint8_t bufRx [];
-extern uint8_t epNumLastRx;
-extern volatile size_t countTx;
-extern volatile size_t countRx;
+extern uint8_t bufRX [];
+extern size_t countRX;
+extern uint8_t epNumLastRX;
+extern uint8_t epNumLastRX;
 
-//void sendEnd (const uint8_t ep);
 void setup (uint8_t *buf);
 void getDesc (uint32_t wValue, uint32_t wLength);
 void setConfig (void);
 void flushTx (void);
 void flushRx (void);
-//void sendData (const uint8_t ep, const uint8_t *buf, size_t len); // Sending data   
-//uint16_t readData (const uint8_t ep, uint8_t *buf);                // Reciv data
 
 extern const uint8_t desc_device [];
 extern const uint8_t desc_config [];

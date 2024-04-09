@@ -4,12 +4,13 @@
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_usart.h" // it's for UART debug print
 #include <stddef.h> 
+#include <stdlib.h> // for itoa
 #include "usb.h"
 
-uint8_t epNumLastRx = 0;
-volatile size_t countTx = 0;
-volatile size_t countRx = 0;
-uint8_t bufRx [512] = {0};
+uint8_t bufRX [MAX(MAX_PACKET_SIZE_EP0, MAX_PACKET_SIZE_EP1)] = {0};
+uint8_t bufTX [MAX(MAX_PACKET_SIZE_EP0, MAX_PACKET_SIZE_EP1)] = {0};
+size_t countRX = 0;
+uint8_t epNumLastRX = 0;
 
 const uint8_t desc_device [] =
 {
@@ -158,9 +159,9 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len)
 
     size_t i, j;
     uint32_t tmp = 0;
-    countTx++;
-    USB_INEP(ep)->DIEPTSIZ = (countTx << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len; // countTx packets
-    USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;   // Enable endpoint, clear NAK bit     
+    size_t current_countTX = ((USB_INEP(ep)->DIEPTSIZ) >> USB_OTG_DIEPTSIZ_PKTCNT_Pos);
+    USB_INEP(ep)->DIEPTSIZ = ((current_countTX + 1) << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | len; // one packet of len bytes
+    USB_INEP(ep)->DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK; // Enable endpoint, clear NAK bit     
     for (i = 0; i < ((len + 3) / 4); i++) 
     {
         tmp = 0;
@@ -172,7 +173,11 @@ void send_ep (const uint8_t ep, const uint8_t *buf, const size_t len)
             }
         }
         USB_FIFO(ep) = tmp; // Copy data 
-    } 
+    }
+    print (">send_ep: PKTCNT'=");
+    char buf_itoa [4] = {0};
+    print (itoa (((USB_INEP(ep)->DIEPTSIZ) >> USB_OTG_DIEPTSIZ_PKTCNT_Pos), buf_itoa, 10));
+    print (">");
 }
 
 void stall_TX_ep (uint8_t ep)
@@ -302,14 +307,14 @@ void setConfig (void)
                             (1 << USB_OTG_DIEPCTL_TXFNUM_Pos)|   // TxFIFO number
                             USB_OTG_DIEPCTL_EPTYP_1 |            // Endpoint type bulk
                             USB_OTG_DIEPCTL_USBAEP |             // Active endpoint
-                            MAX_PACKET_SIZE_EP0;                 // Max packet size
+                            MAX_PACKET_SIZE_EP1;                 // Max packet size
     /* Open EP1 OUT */
     USB_OUTEP(1)->DOEPCTL |= USB_OTG_DOEPCTL_EPENA |             // Endpoint enable
                              USB_OTG_DOEPCTL_SD0PID_SEVNFRM |    // Set DATA0
                              USB_OTG_DOEPCTL_CNAK |              // Clear NAK
                              USB_OTG_DOEPCTL_EPTYP_1 |           // Endpoint type bulk
                              USB_OTG_DOEPCTL_USBAEP |            // Active endpoint 
-                             MAX_PACKET_SIZE_EP0;                // Max packet size
+                             MAX_PACKET_SIZE_EP1;                // Max packet size
     
     USB_OTG_DEV->DAINTMSK = EP1_OUT_INT | EP0_OUT_INT | EP1_IN_INT | EP0_IN_INT; // Enable interrupts for EP0 and EP1
     send_ep (0, 0, 0);
