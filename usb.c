@@ -22,10 +22,10 @@ const uint8_t desc_device [] =
     0x80,                       /* bDeviceSubClass */
     0x55,                       /* bDeviceProtocol */
     0x40,                       /* bMaxPacketSize */
-    0x48,                       /* idVendor, LOBYTE(USBD_VID) */
-    0x43,                       /* idVendor, HIBYTE(USBD_VID) */
-    0xE0,                       /* idProduct, LOBYTE(USBD_PID) */
-    0x55,                       /* idProduct, HIBYTE(USBD_PID) */
+    0x09,                       /* idVendor, LOBYTE(USBD_VID) */ // VID = 0x1209, see pid.codes
+    0x12,                       /* idVendor, HIBYTE(USBD_VID) */
+    0x01,                       /* idProduct, LOBYTE(USBD_PID) */ // PID = 0x0001, see pid.codes
+    0x00,                       /* idProduct, HIBYTE(USBD_PID) */
     0x00,                       /* bcdDevice rel. 1.00 */
     0x01,
     0x00,                       /* Index of manufacturer string */
@@ -64,7 +64,7 @@ const uint8_t desc_config []=
     0x05,                                       /* bDescriptorType: Endpoint */
     0x81,                                       /* bEndpointAddress */
     0x02,                                       /* bmAttributes: Bulk */
-    64U,                                        /* wMaxPacketSize: */
+    MAX_PACKET_SIZE_EP1,                                        /* wMaxPacketSize: */
     0x00,
     0x00,                                       /* bInterval: */
  
@@ -73,7 +73,7 @@ const uint8_t desc_config []=
     0x05,                                       /* bDescriptorType: Endpoint */
     0x01,                                       /* bEndpointAddress */
     0x02,                                       /* bmAttributes: Bulk */
-    64U,                                        /* wMaxPacketSize: */
+    MAX_PACKET_SIZE_EP1,                                        /* wMaxPacketSize: */
     0x00,
     0x00                                        /* bInterval: */
 };
