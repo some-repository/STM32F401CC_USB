@@ -112,8 +112,8 @@ void OTG_FS_IRQHandler (void)
             {                        
                 print (" > DATA packet received "); 
                 read_ep (epnum, &bufRX [countRX], bcnt); // Read data
-                print (&bufRX [countRX]);
                 print (" > ");
+                print (&bufRX [countRX]);
                 send_ep (epnum, &bufRX [countRX], bcnt); // Echo data back
                 //epNumLastRX = epnum; // Save last endpoint num
                 //countRX += bcnt;     // Save all len
